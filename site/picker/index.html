@@ -281,7 +281,7 @@
 
     <div id="listPanel" class="mode-panel">
       <div>
-        <label for="entries">Entries (one per line)</label>
+        <label for="entries">Entries (separate with commas)</label>
         <textarea id="entries" spellcheck="false"></textarea>
       </div>
       <div class="btn-row">
@@ -436,8 +436,14 @@
   }
 
   // ---------- Building the entry set ----------
+  // Entries are split on commas (including Japanese ones) and on new lines.
   function parseList() {
-    return entriesEl.value.split('\n').map((s) => s.trim()).filter(Boolean);
+    return entriesEl.value.split(/[,，、\r\n]+/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  // Write entries back in the style the user is using: lines if the box has new lines, otherwise commas.
+  function joinList(items) {
+    return items.join(/\n/.test(entriesEl.value) ? '\n' : ', ');
   }
 
   function decimalsOf(x) {
@@ -497,7 +503,7 @@
   }
 
   function syncToTextarea() {
-    entriesEl.value = state.listEntries.join('\n');
+    entriesEl.value = joinList(state.listEntries);
     refresh();
   }
 
@@ -819,7 +825,7 @@
   // ---------- Init ----------
   load();
   durationOut.textContent = durationEl.value;
-  entriesEl.value = state.listEntries.join('\n');
+  entriesEl.value = state.listEntries.join(', ');
   modeListBtn.setAttribute('aria-pressed', String(state.mode === 'list'));
   modeRangeBtn.setAttribute('aria-pressed', String(state.mode === 'range'));
   listPanel.hidden = state.mode !== 'list';
