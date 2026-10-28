@@ -137,7 +137,7 @@
 
   .class-list { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--hairline); }
   .size-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
-  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
   button.ghost {
     font: inherit;
@@ -174,6 +174,34 @@
   .opt .plan { color: var(--muted); font-variant-numeric: tabular-nums; }
   fieldset .hint { margin-top: 10px; }
 
+  /* Absent students */
+  details.absent { border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 14px; background: transparent; }
+  details.absent summary { cursor: pointer; font-weight: 700; font-size: 0.95rem; }
+  details.absent[open] summary { margin-bottom: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+  .chip {
+    font: inherit;
+    font-size: 0.95rem;
+    padding: 4px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .chip:hover { border-color: var(--leaf); }
+  .chip[aria-pressed="true"] {
+    background: transparent;
+    border-style: dashed;
+    color: var(--muted);
+    text-decoration: line-through;
+  }
+
+  /* Repeat partners */
+  .partners { display: flex; flex-direction: column; gap: 8px; }
+  .panel .check { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 1rem; }
+  .check input { accent-color: var(--accent); width: 18px; height: 18px; }
+
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
   @media (max-width: 860px) {
@@ -203,7 +231,7 @@
     </div>
 
     <div>
-      <label for="entries">Names (separate with commas)</label>
+      <label for="entries">Names (commas or new lines)</label>
       <textarea id="entries" spellcheck="false" placeholder="Alice, Bob, Chloe, Daiki, Emi, Futoshi"></textarea>
       <p id="count" class="count"></p>
     </div>
@@ -217,6 +245,13 @@
       </div>
       <p id="classMsg" class="hint" role="status" aria-live="polite"></p>
     </div>
+
+    <details id="absentBox" class="absent">
+      <summary>Absent today <span id="absentCount">(0)</span></summary>
+      <p class="hint">Click a name to mark that student absent. Absent students are left out of the groups. This clears itself tomorrow.</p>
+      <div id="chips" class="chips"></div>
+      <button id="allHere" class="ghost" type="button">Everyone is here</button>
+    </details>
 
     <div>
       <label for="size">Group size</label>
@@ -245,6 +280,15 @@
       <p id="planNote" class="hint"></p>
     </fieldset>
 
+    <div class="partners">
+      <label class="check" for="avoid"><input id="avoid" type="checkbox" checked> Avoid repeat partners</label>
+      <p class="hint">Each time you make new groups, the previous groups are remembered, and the new ones keep people with new partners as far as possible.</p>
+      <div class="btn-row">
+        <button id="forgetRounds" class="ghost" type="button">Forget past rounds</button>
+        <span id="roundsCount" class="hint"></span>
+      </div>
+    </div>
+
     <p id="msg" class="msg" role="status" aria-live="polite"></p>
     <p class="hint">Key: Space makes new groups.</p>
   </aside>
@@ -256,6 +300,9 @@
 
   const STORAGE_KEY = 'konoha.groups.v1';
   const CLASS_KEY = 'konoha.classList';   // shared with other Konoha tools
+  const MAX_ROUNDS = 30;                  // past rounds remembered
+  const RESTARTS = 30;                    // search effort when avoiding repeat partners
+  const ITERATIONS = 4000;
   const $ = (id) => document.getElementById(id);
 
   const entriesEl = $('entries');
@@ -273,14 +320,36 @@
   const saveClassBtn = $('saveClass');
   const forgetClassBtn = $('forgetClass');
   const classMsg = $('classMsg');
+  const absentCountEl = $('absentCount');
+  const chipsEl = $('chips');
+  const allHereBtn = $('allHere');
+  const avoidEl = $('avoid');
+  const forgetRoundsBtn = $('forgetRounds');
+  const roundsCountEl = $('roundsCount');
   const presetBtns = Array.from(document.querySelectorAll('.preset'));
 
-  const state = { groups: [] };   // [[name, ...], ...] as last made
+  const state = {
+    groups: [],            // [[name, ...], ...] as last made
+    note: '',              // line about repeat partners for the last groups
+    absent: new Set(),     // names marked absent today
+    history: [],           // earlier rounds: [[[name, ...], ...], ...]
+    skipRecord: false      // true after "Forget past rounds": the groups on screen are not remembered either
+  };
+
+  // Rounds the next groups will avoid: the saved ones plus the groups on screen.
+  const rememberedRounds = () => state.history.length + (state.groups.length && !state.skipRecord ? 1 : 0);
 
   // ---------- Names ----------
   // Names are split on commas (including Japanese ones) and on new lines.
   function parseNames() {
     return entriesEl.value.split(/[,，、\r\n]+/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  const presentNames = (all) => all.filter((n) => !state.absent.has(n));
+
+  // Write names back in the style the box already uses: lines if it has new lines, otherwise commas.
+  function joinNames(names) {
+    return names.join(/\n/.test(entriesEl.value) ? '\n' : ', ');
   }
 
   function sizeValue() {
@@ -291,6 +360,11 @@
   function mode() {
     const checked = document.querySelector('input[name="remainder"]:checked');
     return checked && checked.value === 'bigger' ? 'bigger' : 'smaller';
+  }
+
+  function today() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
   // ---------- Planning the group sizes ----------
@@ -329,22 +403,29 @@
     try { localStorage.removeItem(CLASS_KEY); } catch (e) { /* storage unavailable */ }
   }
 
-  function updateClassUI() {
+  function updateClassUI(all) {
     const n = readClassList().length;
     loadClassBtn.textContent = n ? `Load class list (${n})` : 'Load class list';
     loadClassBtn.disabled = n === 0;
     forgetClassBtn.disabled = n === 0;
-    saveClassBtn.disabled = parseNames().length === 0;
+    saveClassBtn.disabled = all.length === 0;
   }
 
   // ---------- Persistence (per-viewer convenience only) ----------
   function save() {
     try {
+      const names = new Set(parseNames());
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         entries: entriesEl.value,
         size: sizeEl.value,
         mode: mode(),
-        groups: state.groups
+        avoid: avoidEl.checked,
+        groups: state.groups,
+        note: state.note,
+        history: state.history,
+        skipRecord: state.skipRecord,
+        absent: Array.from(state.absent).filter((n) => names.has(n)),
+        absentDate: today()
       }));
     } catch (e) { /* storage unavailable */ }
   }
@@ -356,9 +437,19 @@
       if (typeof d.entries === 'string') entriesEl.value = d.entries;
       if (d.size !== undefined && isFinite(parseInt(d.size, 10))) sizeEl.value = d.size;
       if (d.mode === 'bigger') $('optBigger').checked = true;
+      if (typeof d.avoid === 'boolean') avoidEl.checked = d.avoid;
+      if (typeof d.note === 'string') state.note = d.note;
+      if (typeof d.skipRecord === 'boolean') state.skipRecord = d.skipRecord;
       if (Array.isArray(d.groups)) {
         state.groups = d.groups.filter(Array.isArray).map((g) => g.map(String));
       }
+      if (Array.isArray(d.history)) {
+        state.history = d.history.filter(Array.isArray)
+          .map((round) => round.filter(Array.isArray).map((g) => g.map(String)))
+          .slice(-MAX_ROUNDS);
+      }
+      // Absences only last for the day they were marked.
+      if (d.absentDate === today() && Array.isArray(d.absent)) state.absent = new Set(d.absent.map(String));
     } else {
       // First visit: start from the saved class list if there is one.
       const names = readClassList();
@@ -366,11 +457,41 @@
     }
   }
 
+  // ---------- Absent students ----------
+  let chipsKey = '';
+
+  function renderChips(all) {
+    const unique = Array.from(new Set(all));
+    const key = unique.join('\u0001');
+    if (key !== chipsKey) {
+      chipsKey = key;
+      chipsEl.textContent = '';
+      unique.forEach((name) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = name;
+        b.dataset.name = name;
+        chipsEl.appendChild(b);
+      });
+    }
+    Array.from(chipsEl.children).forEach((b) => {
+      b.setAttribute('aria-pressed', String(state.absent.has(b.dataset.name)));
+    });
+  }
+
   // ---------- Display ----------
   function refresh() {
-    const n = parseNames().length;
+    const all = parseNames();
+    const here = presentNames(all);
+    const n = here.length;
+    const absentN = all.length - n;
     const size = sizeValue();
-    countEl.textContent = n + (n === 1 ? ' name' : ' names');
+
+    countEl.textContent = all.length + (all.length === 1 ? ' name' : ' names') +
+      (absentN ? ` · ${absentN} absent · ${n} here` : '');
+    absentCountEl.textContent = `(${absentN})`;
+    renderChips(all);
 
     presetBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.size) === size)));
 
@@ -386,7 +507,7 @@
         note = 'One group would have only 1 person. Try bigger groups.';
         bad = true;
       } else if (n < size) {
-        note = 'There are fewer names than the group size, so everyone is in one group.';
+        note = 'There are fewer students here than the group size, so everyone is in one group.';
       } else if (smaller.join() === bigger.join()) {
         note = 'The names divide evenly, so both choices give the same groups.';
       }
@@ -398,9 +519,17 @@
     planNoteEl.classList.toggle('bad', bad);
 
     makeBtn.disabled = !(n >= 2 && size >= 2);
-    msgEl.textContent = n < 2 ? 'Add at least 2 names.' : size < 2 ? 'Group size must be 2 or more.' : '';
+    msgEl.textContent = n < 2
+      ? (all.length >= 2 ? 'Fewer than 2 students are here.' : 'Add at least 2 names.')
+      : size < 2 ? 'Group size must be 2 or more.' : '';
 
-    updateClassUI();
+    const remembered = rememberedRounds();
+    roundsCountEl.textContent = remembered
+      ? `Rounds the next groups will avoid: ${remembered}`
+      : 'No past rounds yet.';
+    forgetRoundsBtn.disabled = remembered === 0;
+
+    updateClassUI(all);
     save();
   }
 
@@ -408,7 +537,9 @@
     const gs = state.groups;
     groupsEl.textContent = '';
     emptyEl.hidden = gs.length > 0;
-    metaEl.textContent = gs.length ? describe(gs.map((g) => g.length)) : '';
+    metaEl.textContent = gs.length
+      ? describe(gs.map((g) => g.length)) + (state.note ? ' · ' + state.note : '')
+      : '';
     makeBtn.textContent = gs.length ? 'Make new groups' : 'Make groups';
 
     const label = gs.length && gs.every((g) => g.length === 2) ? 'Pair' : 'Group';
@@ -432,32 +563,100 @@
   }
 
   // ---------- Making the groups ----------
+  const randInt = (n) => Math.floor(Math.random() * n);
+
   function shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = randInt(i + 1);
       [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
   }
 
+  function split(pool, sizes) {
+    let at = 0;
+    return sizes.map((s) => { const g = pool.slice(at, at + s); at += s; return g; });
+  }
+
+  // Random groups with as few repeat pairs as possible. Random starting groups are improved by
+  // swapping two students whenever that does not add repeat pairs. Past pairs together count more
+  // the more often they happened. With no history every cost is 0 and the groups are just random.
+  function buildAvoiding(names, sizes) {
+    const unique = Array.from(new Set(names));
+    const idOf = new Map(unique.map((n, i) => [n, i]));
+    const U = unique.length;
+    const W = Array.from({ length: U }, () => new Array(U).fill(0));
+    state.history.forEach((round) => round.forEach((group) => {
+      const ids = group.filter((n) => idOf.has(n)).map((n) => idOf.get(n));
+      for (let a = 0; a < ids.length; a++) {
+        for (let b = a + 1; b < ids.length; b++) {
+          if (ids[a] !== ids[b]) { W[ids[a]][ids[b]] += 1; W[ids[b]][ids[a]] += 1; }
+        }
+      }
+    }));
+
+    const members = names.map((n) => idOf.get(n));
+    const pairsOf = (g, fn) => { for (let a = 0; a < g.length; a++) for (let b = a + 1; b < g.length; b++) fn(g[a], g[b]); };
+    const totalCost = (gs) => { let c = 0; gs.forEach((g) => pairsOf(g, (x, y) => { c += W[x][y]; })); return c; };
+
+    let best = null;
+    let bestCost = Infinity;
+    for (let r = 0; r < RESTARTS && bestCost > 0; r++) {
+      const gs = split(shuffle(members.slice()), sizes);
+      let cost = totalCost(gs);
+      for (let it = 0; it < ITERATIONS && cost > 0 && gs.length > 1; it++) {
+        const g1 = randInt(gs.length);
+        let g2 = randInt(gs.length - 1);
+        if (g2 >= g1) g2 += 1;
+        const i1 = randInt(gs[g1].length);
+        const i2 = randInt(gs[g2].length);
+        const a = gs[g1][i1];
+        const b = gs[g2][i2];
+        let delta = 0;
+        gs[g1].forEach((x, k) => { if (k !== i1) delta += W[b][x] - W[a][x]; });
+        gs[g2].forEach((y, k) => { if (k !== i2) delta += W[a][y] - W[b][y]; });
+        if (delta <= 0) { gs[g1][i1] = b; gs[g2][i2] = a; cost += delta; }
+      }
+      if (cost < bestCost) { bestCost = cost; best = gs; }
+    }
+
+    let repeats = 0;
+    best.forEach((g) => pairsOf(g, (x, y) => { if (W[x][y] > 0) repeats += 1; }));
+    return { groups: best.map((g) => g.map((id) => unique[id])), repeats };
+  }
+
   function make() {
-    const names = parseNames();
+    const names = presentNames(parseNames());
     const size = sizeValue();
     if (names.length < 2 || size < 2) return;
+
+    // The groups on screen count as a past round once new ones are made.
+    if (state.groups.length && !state.skipRecord) {
+      state.history.push(state.groups.map((g) => g.slice()));
+      if (state.history.length > MAX_ROUNDS) state.history.splice(0, state.history.length - MAX_ROUNDS);
+    }
+    state.skipRecord = false;
+
     const sizes = plan(names.length, size, mode());
-    const pool = shuffle(names.slice());
-    const groups = [];
-    let at = 0;
-    sizes.forEach((s) => { groups.push(pool.slice(at, at + s)); at += s; });
-    state.groups = groups;
+    if (avoidEl.checked && state.history.length) {
+      const r = buildAvoiding(names, sizes);
+      state.groups = r.groups;
+      state.note = r.repeats === 0
+        ? 'no repeat partners'
+        : `${r.repeats} ${r.repeats === 1 ? 'pair' : 'pairs'} worked together before`;
+    } else {
+      state.groups = split(shuffle(names.slice()), sizes);
+      state.note = '';
+    }
     renderGroups();
-    save();
+    refresh();
   }
 
   // ---------- Events ----------
   makeBtn.addEventListener('click', make);
   entriesEl.addEventListener('input', refresh);
   sizeEl.addEventListener('input', refresh);
+  avoidEl.addEventListener('change', refresh);
   document.querySelectorAll('input[name="remainder"]').forEach((r) => r.addEventListener('change', refresh));
 
   presetBtns.forEach((btn) => {
@@ -467,10 +666,29 @@
     });
   });
 
+  chipsEl.addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    const name = chip.dataset.name;
+    if (state.absent.has(name)) state.absent.delete(name); else state.absent.add(name);
+    refresh();
+  });
+
+  allHereBtn.addEventListener('click', () => {
+    state.absent.clear();
+    refresh();
+  });
+
+  forgetRoundsBtn.addEventListener('click', () => {
+    state.history = [];
+    state.skipRecord = true;
+    refresh();
+  });
+
   loadClassBtn.addEventListener('click', () => {
     const names = readClassList();
     if (!names.length) return;
-    entriesEl.value = names.join(', ');
+    entriesEl.value = joinNames(names);
     classMsg.textContent = `Loaded ${names.length} names.`;
     refresh();
   });
@@ -480,14 +698,14 @@
     if (!names.length) return;
     writeClassList(names);
     classMsg.textContent = `Saved ${names.length} names as the class list.`;
-    updateClassUI();
+    updateClassUI(names);
   });
 
   forgetClassBtn.addEventListener('click', () => {
     if (!confirm('Delete the saved class list from this browser?')) return;
     clearClassList();
     classMsg.textContent = 'Class list deleted.';
-    updateClassUI();
+    updateClassUI(parseNames());
   });
 
   document.addEventListener('keydown', (e) => {
