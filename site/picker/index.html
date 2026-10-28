@@ -175,6 +175,7 @@
   }
   .range-msg { margin: 0; min-height: 1.4em; font-size: 0.95rem; color: var(--danger); }
   .hint { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .class-list { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--hairline); }
 
   .count { margin: 0; color: var(--muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
 
@@ -287,6 +288,15 @@
         <button id="sort" class="ghost" type="button">Sort A–Z</button>
         <button id="clear" class="ghost" type="button">Clear</button>
       </div>
+      <div class="class-list">
+        <p class="hint">Class list: saved in this browser only, never sent anywhere. Other Konoha tools can use it.</p>
+        <div class="btn-row">
+          <button id="loadClass" class="ghost" type="button">Load class list</button>
+          <button id="saveClass" class="ghost" type="button">Save as class list</button>
+          <button id="forgetClass" class="ghost" type="button">Delete class list</button>
+        </div>
+        <p id="classMsg" class="hint" role="status" aria-live="polite"></p>
+      </div>
     </div>
 
     <div id="rangePanel" class="mode-panel" hidden>
@@ -375,6 +385,10 @@
   const stepEl = $('rangeStep');
   const rangeMsg = $('rangeMsg');
   const restoreBtn = $('restore');
+  const loadClassBtn = $('loadClass');
+  const saveClassBtn = $('saveClass');
+  const forgetClassBtn = $('forgetClass');
+  const classMsg = $('classMsg');
 
   const state = {
     mode: 'list',                 // 'list' | 'range'
@@ -428,6 +442,34 @@
       if (typeof d.sound === 'boolean') soundEl.checked = d.sound;
       if (typeof d.autoRemove === 'boolean') autoRemoveEl.checked = d.autoRemove;
     } catch (e) { /* ignore corrupt data */ }
+  }
+
+  // ---------- Shared class list (browser-side only; other Konoha tools read the same key) ----------
+  const CLASS_KEY = 'konoha.classList';
+
+  function readClassList() {
+    try {
+      const d = JSON.parse(localStorage.getItem(CLASS_KEY));
+      return d && Array.isArray(d.names) ? d.names.map(String) : [];
+    } catch (e) { return []; }
+  }
+
+  function writeClassList(names) {
+    try {
+      localStorage.setItem(CLASS_KEY, JSON.stringify({ names, saved: new Date().toISOString() }));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function clearClassList() {
+    try { localStorage.removeItem(CLASS_KEY); } catch (e) { /* storage unavailable */ }
+  }
+
+  function updateClassUI() {
+    const n = readClassList().length;
+    loadClassBtn.textContent = n ? `Load class list (${n})` : 'Load class list';
+    loadClassBtn.disabled = n === 0;
+    forgetClassBtn.disabled = n === 0;
+    saveClassBtn.disabled = state.listEntries.length === 0;
   }
 
   // ---------- Building the entry set ----------
@@ -488,6 +530,7 @@
     restoreBtn.textContent = `Restore removed (${state.removed.length})`;
     restoreBtn.disabled = state.removed.length === 0;
     spinBtn.disabled = state.spinning || n < 2;
+    updateClassUI();
     draw();
     save();
   }
@@ -780,6 +823,30 @@
     state.listEntries = parseList().sort((x, y) =>
       x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }));
     syncToTextarea();
+  });
+
+  loadClassBtn.addEventListener('click', () => {
+    if (state.spinning) return;
+    const names = readClassList();
+    if (!names.length) return;
+    state.listEntries = names;
+    classMsg.textContent = `Loaded ${names.length} names.`;
+    syncToTextarea();
+  });
+
+  saveClassBtn.addEventListener('click', () => {
+    const names = state.listEntries.slice();
+    if (!names.length) return;
+    writeClassList(names);
+    classMsg.textContent = `Saved ${names.length} names as the class list.`;
+    updateClassUI();
+  });
+
+  forgetClassBtn.addEventListener('click', () => {
+    if (!confirm('Delete the saved class list from this browser?')) return;
+    clearClassList();
+    classMsg.textContent = 'Class list deleted.';
+    updateClassUI();
   });
 
   $('clear').addEventListener('click', () => {

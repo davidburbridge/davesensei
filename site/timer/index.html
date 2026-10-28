@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<!--
+  STYLE (shared with the launcher; keep tools consistent)
+  surface #fafbf6 · tint #edf4e3 · hairline #cbd5c0 · ink #1e2b1e · muted #4f5e4f · leaf #4e9a2a
+  light background, leaf-green accent, sans serif, no small caps
+  title block: 80px x 8px leaf rule above a bold h1 · cards: tint background, 1px hairline, 8px radius
+  Layout: huge time display for the projector, big Start/Reset, settings underneath.
+-->
+<style>
+  :root {
+    --surface: #fafbf6;
+    --tint: #edf4e3;
+    --hairline: #cbd5c0;
+    --ink: #1e2b1e;
+    --muted: #4f5e4f;
+    --leaf: #4e9a2a;
+    --accent: #3f7f21;        /* leaf, darkened so white text stays readable */
+    --accent-hover: #346b1b;
+    --accent-fg: #ffffff;
+    --danger: #a3262f;
+    --focus: rgba(78, 154, 42, 0.5);
+    --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', Meiryo, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--surface); }
+
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 17px;
+    line-height: 1.5;
+    padding-inline: 24px;
+    padding-block: 24px 40px;
+  }
+
+  .app {
+    max-width: 1100px;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .title-block { display: flex; flex-direction: column; gap: 12px; }
+  .rule { width: 80px; height: 8px; background: var(--leaf); border-radius: 4px; }
+  h1 { margin: 0; font-weight: 700; font-size: 2rem; line-height: 1.2; }
+
+  /* Mode switch */
+  .modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 3px;
+    background: var(--tint);
+    min-width: 280px;
+  }
+  .mode-btn {
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+    padding: 9px 18px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .mode-btn:hover:not(:disabled) { color: var(--ink); }
+  .mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .mode-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); opacity: 1; }
+
+  /* Display: sized so it fills a projector screen. */
+  .display {
+    background: var(--tint);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 28px 16px 36px;
+    text-align: center;
+    transition: background 0.2s, color 0.2s;
+  }
+  .display.alert { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  .phase {
+    margin: 0 0 8px;
+    min-height: 1.3em;
+    font-size: clamp(1.6rem, 4.5vw, 3rem);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--muted);
+  }
+  .display.alert .phase { color: var(--accent-fg); }
+  .time {
+    font-weight: 700;
+    line-height: 1;
+    font-size: clamp(6rem, min(26vw, 40vh), 19rem);
+    white-space: nowrap;
+  }
+  /* Fixed-width digits so the numbers never jiggle as they change. */
+  .time .d { display: inline-block; width: 0.62em; text-align: center; }
+  .time .c { display: inline-block; width: 0.3em; text-align: center; }
+
+  .controls { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  button.primary, button.ghost {
+    font: inherit;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button.primary {
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 11px 22px;
+    border: 0;
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost {
+    font-size: 1rem;
+    padding: 8px 14px;
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  button.ghost:hover:not(:disabled) { border-color: var(--leaf); }
+  button.ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+  .big { font-size: clamp(1.4rem, 3vw, 2rem) !important; padding: 14px 44px !important; min-width: 200px; }
+
+  .msg { margin: 0; min-height: 1.4em; text-align: center; color: var(--danger); font-size: 1rem; }
+
+  .settings {
+    background: var(--tint);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .row-label { font-weight: 700; font-size: 0.95rem; }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .fields label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 0.95rem; }
+  .fields input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .fields input:disabled { opacity: 0.6; }
+  .mode-panel { display: flex; flex-direction: column; gap: 10px; }
+  .hint { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+  .check { display: flex; align-items: center; gap: 8px; font-weight: 400; font-size: 1rem; }
+  .check input { accent-color: var(--accent); width: 18px; height: 18px; }
+
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  @media (max-width: 600px) {
+    body { padding-inline: 16px; }
+    .modes { min-width: 0; width: 100%; }
+    .big { min-width: 0; flex: 1; padding-inline: 20px !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .display { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<main class="app">
+  <div class="top">
+    <div class="title-block">
+      <div class="rule"></div>
+      <h1>Timer</h1>
+    </div>
+    <div class="modes" role="group" aria-label="Timer type">
+      <button id="modeCountdown" class="mode-btn" type="button" aria-pressed="true">Countdown</button>
+      <button id="modeInterval" class="mode-btn" type="button" aria-pressed="false">Interval</button>
+    </div>
+  </div>
+
+  <section id="display" class="display" aria-label="Timer display">
+    <p id="phase" class="phase" aria-live="polite">Ready</p>
+    <div id="time" class="time" role="timer"></div>
+  </section>
+
+  <div class="controls">
+    <button id="start" class="primary big" type="button">Start</button>
+    <button id="reset" class="ghost big" type="button">Reset</button>
+  </div>
+  <p id="msg" class="msg" role="status" aria-live="polite"></p>
+
+  <section class="settings" aria-label="Settings">
+    <div class="row">
+      <span id="presetLabel" class="row-label">Quick set</span>
+      <div class="presets" role="group" aria-labelledby="presetLabel">
+        <button class="ghost preset" type="button" data-sec="30">30 s</button>
+        <button class="ghost preset" type="button" data-sec="60">1 min</button>
+        <button class="ghost preset" type="button" data-sec="120">2 min</button>
+        <button class="ghost preset" type="button" data-sec="180">3 min</button>
+        <button class="ghost preset" type="button" data-sec="300">5 min</button>
+        <button class="ghost preset" type="button" data-sec="600">10 min</button>
+      </div>
+    </div>
+
+    <div id="cdPanel" class="mode-panel">
+      <div class="fields">
+        <label for="cdMin">Minutes
+          <input id="cdMin" type="number" min="0" max="180" step="1" value="2" inputmode="numeric">
+        </label>
+        <label for="cdSec">Seconds
+          <input id="cdSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric">
+        </label>
+      </div>
+    </div>
+
+    <div id="ivPanel" class="mode-panel" hidden>
+      <div class="fields">
+        <label for="ivMin">Interval: minutes
+          <input id="ivMin" type="number" min="0" max="180" step="1" value="2" inputmode="numeric">
+        </label>
+        <label for="ivSec">Interval: seconds
+          <input id="ivSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric">
+        </label>
+        <label for="ivRounds">Rounds
+          <input id="ivRounds" type="number" min="1" max="50" step="1" value="4" inputmode="numeric">
+        </label>
+        <label for="ivSwap">Time to swap (seconds)
+          <input id="ivSwap" type="number" min="0" max="120" step="1" value="10" inputmode="numeric">
+        </label>
+      </div>
+      <p id="ivSummary" class="hint"></p>
+    </div>
+
+    <div class="row">
+      <label class="check" for="sound"><input id="sound" type="checkbox" checked> Sound</label>
+      <button id="testSound" class="ghost" type="button">Test sound</button>
+    </div>
+    <p class="hint">Double beep = swap. Rising tune = finished. Keys: Space starts or pauses, R resets.</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'konoha.timer.v1';
+  const TICK_MS = 100;
+  const $ = (id) => document.getElementById(id);
+
+  const displayEl = $('display');
+  const phaseEl = $('phase');
+  const timeEl = $('time');
+  const startBtn = $('start');
+  const resetBtn = $('reset');
+  const msgEl = $('msg');
+  const modeCdBtn = $('modeCountdown');
+  const modeIvBtn = $('modeInterval');
+  const cdPanel = $('cdPanel');
+  const ivPanel = $('ivPanel');
+  const cdMin = $('cdMin');
+  const cdSec = $('cdSec');
+  const ivMin = $('ivMin');
+  const ivSec = $('ivSec');
+  const ivRounds = $('ivRounds');
+  const ivSwap = $('ivSwap');
+  const ivSummary = $('ivSummary');
+  const soundEl = $('sound');
+  const testBtn = $('testSound');
+  const inputs = [cdMin, cdSec, ivMin, ivSec, ivRounds, ivSwap];
+  const presetBtns = Array.from(document.querySelectorAll('.preset'));
+
+  const state = {
+    mode: 'countdown',   // 'countdown' | 'interval'
+    status: 'idle',      // 'idle' | 'running' | 'paused' | 'done'
+    phase: 'work',       // interval only: 'work' | 'swap'
+    round: 1,
+    remaining: 0,        // ms left in the current segment
+    deadline: 0,         // performance.now() value when the current segment ends
+    flashUntil: 0,       // shows "Swap!" briefly when there is no swap time
+    cfg: null            // settings locked in when a run starts
+  };
+
+  let timerId = null;
+  let audioCtx = null;
+
+  // ---------- Settings ----------
+  function num(input, min, max, fallback) {
+    const v = parseInt(input.value, 10);
+    if (!isFinite(v)) return fallback;
+    return Math.min(max, Math.max(min, v));
+  }
+  const cdMs = () => (num(cdMin, 0, 180, 0) * 60 + num(cdSec, 0, 59, 0)) * 1000;
+  const ivMs = () => (num(ivMin, 0, 180, 0) * 60 + num(ivSec, 0, 59, 0)) * 1000;
+  const rounds = () => num(ivRounds, 1, 50, 1);
+  const swapMs = () => num(ivSwap, 0, 120, 0) * 1000;
+
+  function fmt(ms) {
+    const s = Math.ceil(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  // ---------- Persistence (per-viewer convenience only) ----------
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        mode: state.mode,
+        cdMin: cdMin.value, cdSec: cdSec.value,
+        ivMin: ivMin.value, ivSec: ivSec.value,
+        ivRounds: ivRounds.value, ivSwap: ivSwap.value,
+        sound: soundEl.checked
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.mode === 'countdown' || d.mode === 'interval') state.mode = d.mode;
+      [['cdMin', cdMin], ['cdSec', cdSec], ['ivMin', ivMin], ['ivSec', ivSec], ['ivRounds', ivRounds], ['ivSwap', ivSwap]]
+        .forEach(([key, el]) => { if (d[key] !== undefined && isFinite(parseInt(d[key], 10))) el.value = d[key]; });
+      if (typeof d.sound === 'boolean') soundEl.checked = d.sound;
+    } catch (e) { /* ignore corrupt data */ }
+  }
+
+  // ---------- Sound ----------
+  function prepareAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { audioCtx = null; }
+  }
+
+  function tone(freq, at, dur) {
+    if (!soundEl.checked || !audioCtx) return;
+    try {
+      const t = audioCtx.currentTime + at;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.4, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  const swapBeep = () => { tone(880, 0, 0.18); tone(880, 0.28, 0.18); };
+  const goBeep = () => tone(1175, 0, 0.12);
+  const finishBeep = () => { tone(660, 0, 0.22); tone(880, 0.28, 0.22); tone(1175, 0.56, 0.6); };
+
+  // ---------- Display ----------
+  function renderTime(text) {
+    if (timeEl.dataset.text === text) return;
+    timeEl.dataset.text = text;
+    timeEl.setAttribute('aria-label', text);
+    timeEl.textContent = '';
+    for (const ch of text) {
+      const s = document.createElement('span');
+      s.className = ch === ':' ? 'c' : 'd';
+      s.setAttribute('aria-hidden', 'true');
+      s.textContent = ch;
+      timeEl.appendChild(s);
+    }
+  }
+
+  function render() {
+    const idle = state.status === 'idle';
+    const done = state.status === 'done';
+    const paused = state.status === 'paused';
+    let ms;
+    let phaseText;
+    let alert = false;
+
+    if (idle) {
+      ms = state.mode === 'countdown' ? cdMs() : ivMs();
+      phaseText = 'Ready';
+    } else if (done) {
+      ms = 0;
+      phaseText = state.mode === 'countdown' ? "Time's up!" : 'All done!';
+      alert = true;
+    } else {
+      ms = state.remaining;
+      if (state.mode === 'countdown') {
+        phaseText = paused ? 'Paused' : 'Time left';
+      } else if (state.phase === 'swap') {
+        phaseText = 'Swap!';
+        alert = true;
+      } else if (!paused && performance.now() < state.flashUntil) {
+        phaseText = 'Swap!';
+        alert = true;
+      } else {
+        phaseText = 'Round ' + state.round + ' of ' + state.cfg.rounds + (paused ? ' · Paused' : '');
+      }
+    }
+
+    renderTime(fmt(ms));
+    phaseEl.textContent = phaseText;
+    displayEl.classList.toggle('alert', alert);
+    document.title = idle ? 'Timer' : fmt(ms) + ' · Timer';
+
+    startBtn.textContent = state.status === 'running' ? 'Pause' : paused ? 'Resume' : done ? 'Start again' : 'Start';
+    resetBtn.disabled = idle;
+
+    const first = state.mode === 'countdown' ? cdMs() : ivMs();
+    const editable = idle || done;
+    startBtn.disabled = editable && first <= 0;
+    msgEl.textContent = editable && first <= 0 ? 'Set a time above 0.' : '';
+  }
+
+  function updateEditable() {
+    const locked = state.status === 'running' || state.status === 'paused';
+    inputs.forEach((el) => { el.disabled = locked; });
+    presetBtns.forEach((el) => { el.disabled = locked; });
+    modeCdBtn.disabled = locked;
+    modeIvBtn.disabled = locked;
+  }
+
+  function updateSummary() {
+    const n = rounds();
+    const iv = ivMs();
+    const sw = swapMs();
+    const total = n * iv + (n - 1) * sw;
+    ivSummary.textContent = n + (n === 1 ? ' round' : ' rounds') + ' × ' + fmt(iv) +
+      (sw && n > 1 ? ', ' + (sw / 1000) + ' s to swap between rounds' : '') + '. Total: ' + fmt(total) + '.';
+  }
+
+  // ---------- Running ----------
+  function finish() {
+    state.status = 'done';
+    state.remaining = 0;
+    clearInterval(timerId);
+    timerId = null;
+    finishBeep();
+  }
+
+  // The current segment has ended at state.deadline; move to the next one.
+  function advance() {
+    const end = state.deadline;
+    const cfg = state.cfg;
+    if (state.mode === 'countdown') { finish(); return; }
+    if (state.phase === 'work') {
+      if (state.round >= cfg.rounds) { finish(); return; }
+      swapBeep();
+      if (cfg.swapMs > 0) {
+        state.phase = 'swap';
+        state.deadline = end + cfg.swapMs;
+      } else {
+        state.round += 1;
+        state.deadline = end + cfg.ivMs;
+        state.flashUntil = performance.now() + 2000;
+      }
+    } else {
+      goBeep();
+      state.phase = 'work';
+      state.round += 1;
+      state.deadline = end + cfg.ivMs;
+    }
+  }
+
+  function tick() {
+    const now = performance.now();
+    let guard = 0;
+    while (state.status === 'running' && now >= state.deadline && guard++ < 100) advance();
+    if (state.status === 'running') state.remaining = Math.max(0, state.deadline - now);
+    render();
+    updateEditable();
+  }
+
+  function run() {
+    clearInterval(timerId);
+    timerId = setInterval(tick, TICK_MS);
+    render();
+    updateEditable();
+  }
+
+  function start() {
+    prepareAudio();
+    if (state.status === 'paused') {
+      state.deadline = performance.now() + state.remaining;
+      state.status = 'running';
+      run();
+      return;
+    }
+    const cfg = state.mode === 'countdown'
+      ? { ms: cdMs() }
+      : { ivMs: ivMs(), rounds: rounds(), swapMs: swapMs() };
+    const first = state.mode === 'countdown' ? cfg.ms : cfg.ivMs;
+    if (first <= 0) return;
+    state.cfg = cfg;
+    state.round = 1;
+    state.phase = 'work';
+    state.flashUntil = 0;
+    state.remaining = first;
+    state.deadline = performance.now() + first;
+    state.status = 'running';
+    run();
+  }
+
+  function pause() {
+    state.remaining = Math.max(0, state.deadline - performance.now());
+    state.status = 'paused';
+    clearInterval(timerId);
+    timerId = null;
+    render();
+    updateEditable();
+  }
+
+  function reset() {
+    clearInterval(timerId);
+    timerId = null;
+    state.status = 'idle';
+    render();
+    updateEditable();
+  }
+
+  function toggle() {
+    if (state.status === 'running') pause(); else start();
+  }
+
+  function setMode(mode) {
+    if (state.status === 'running' || state.status === 'paused' || mode === state.mode) return;
+    state.mode = mode;
+    state.status = 'idle';
+    applyMode();
+    save();
+  }
+
+  function applyMode() {
+    modeCdBtn.setAttribute('aria-pressed', String(state.mode === 'countdown'));
+    modeIvBtn.setAttribute('aria-pressed', String(state.mode === 'interval'));
+    cdPanel.hidden = state.mode !== 'countdown';
+    ivPanel.hidden = state.mode !== 'interval';
+    updateSummary();
+    render();
+    updateEditable();
+  }
+
+  function onSettingsChange() {
+    if (state.status === 'done') state.status = 'idle';
+    updateSummary();
+    render();
+    save();
+  }
+
+  // ---------- Events ----------
+  modeCdBtn.addEventListener('click', () => setMode('countdown'));
+  modeIvBtn.addEventListener('click', () => setMode('interval'));
+  startBtn.addEventListener('click', toggle);
+  resetBtn.addEventListener('click', reset);
+  inputs.forEach((el) => el.addEventListener('input', onSettingsChange));
+  soundEl.addEventListener('change', save);
+
+  presetBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sec = Number(btn.dataset.sec);
+      const [minEl, secEl] = state.mode === 'countdown' ? [cdMin, cdSec] : [ivMin, ivSec];
+      minEl.value = Math.floor(sec / 60);
+      secEl.value = sec % 60;
+      onSettingsChange();
+    });
+  });
+
+  testBtn.addEventListener('click', () => {
+    prepareAudio();
+    swapBeep();
+    setTimeout(finishBeep, 1200);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.code === 'Space') {
+      if (tag === 'BUTTON') return; // the focused button handles Space itself
+      e.preventDefault();
+      toggle();
+    } else if (e.code === 'KeyR') {
+      reset();
+    }
+  });
+
+  // ---------- Init ----------
+  load();
+  applyMode();
+})();
+</script>
+</body>
+</html>
