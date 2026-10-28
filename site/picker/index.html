@@ -214,9 +214,7 @@
 
   details summary { cursor: pointer; font-weight: 700; font-size: 0.95rem; }
   #history { margin: 10px 0; padding-left: 26px; max-height: 170px; overflow-y: auto; font-size: 1rem; }
-  #history li { padding: 1px 0; overflow-wrap: anywhere; }
-  .history-text { margin: 10px 0; max-height: 170px; overflow-y: auto; font-size: 1rem; overflow-wrap: anywhere; }
-  .empty-note { color: var(--muted); font-size: 0.95rem; margin: 10px 0; }
+  #history li { padding: 1px 0; overflow-wrap: anywhere; }  .empty-note { color: var(--muted); font-size: 0.95rem; margin: 10px 0; }
 
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
@@ -324,7 +322,6 @@
     <details>
       <summary>History</summary>
       <p id="historyEmpty" class="empty-note">Winners will be listed here.</p>
-      <p id="historyText" class="history-text"></p>
       <ol id="history"></ol>
       <button id="clearHistory" class="ghost" type="button">Clear history</button>
     </details>
@@ -367,9 +364,7 @@
   const soundEl = $('sound');
   const autoRemoveEl = $('autoRemove');
   const historyEl = $('history');
-  const historyEmpty = $('historyEmpty');
-  const historyText = $('historyText');
-  const resultEl = $('result');
+  const historyEmpty = $('historyEmpty');  const resultEl = $('result');
   const winnerEl = $('winner');
   const modeListBtn = $('modeList');
   const modeRangeBtn = $('modeRange');
@@ -743,21 +738,15 @@
     resultEl.hidden = true;
   }
 
-  // List mode shows one comma-separated line; range mode shows a numbered list.
+  // Shows the history of the current mode only, one winner per line.
   function renderHistory() {
     const items = state.histories[state.mode];
-    const asText = state.mode === 'list';
-    historyText.hidden = !asText;
-    historyEl.hidden = asText;
-    historyText.textContent = asText ? items.join(', ') : '';
     historyEl.innerHTML = '';
-    if (!asText) {
-      items.forEach((name) => {
-        const li = document.createElement('li');
-        li.textContent = name;
-        historyEl.appendChild(li);
-      });
-    }
+    items.forEach((name) => {
+      const li = document.createElement('li');
+      li.textContent = name;
+      historyEl.appendChild(li);
+    });
     historyEmpty.hidden = items.length > 0;
   }
 
