@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Group Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<!--
+  STYLE (shared with the launcher; keep tools consistent)
+  surface #fafbf6 · tint #edf4e3 · hairline #cbd5c0 · ink #1e2b1e · muted #4f5e4f · leaf #4e9a2a
+  light background, leaf-green accent, sans serif, no small caps
+  title block: 80px x 8px leaf rule above a bold h1 · cards: tint background, 1px hairline, 8px radius
+  Layout: groups on the left as the main object, one setup panel on the right; stacks on phones.
+-->
+<style>
+  :root {
+    --surface: #fafbf6;
+    --tint: #edf4e3;
+    --hairline: #cbd5c0;
+    --ink: #1e2b1e;
+    --muted: #4f5e4f;
+    --leaf: #4e9a2a;
+    --accent: #3f7f21;        /* leaf, darkened so white text stays readable */
+    --accent-hover: #346b1b;
+    --accent-fg: #ffffff;
+    --danger: #a3262f;
+    --focus: rgba(78, 154, 42, 0.5);
+    --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', Meiryo, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--surface); }
+
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 17px;
+    line-height: 1.5;
+    padding-inline: 24px;
+    padding-block: 24px 40px;
+  }
+
+  .app {
+    max-width: 1280px;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  /* Results (main object) */
+  .results { min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+  .results-top { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .meta { margin: 0; color: var(--muted); font-size: 1.15rem; font-weight: 700; }
+  .empty { margin: 0; color: var(--muted); font-size: 1.15rem; }
+
+  .groups {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .group {
+    background: var(--tint);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 14px 18px 16px;
+  }
+  .group h2 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 700; color: var(--accent); }
+  .members { list-style: none; margin: 0; padding: 0; }
+  .member { font-size: 1.5rem; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
+
+  /* Setup panel */
+  .panel {
+    min-width: 0;
+    background: var(--tint);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .title-block { display: flex; flex-direction: column; gap: 12px; }
+  .rule { width: 80px; height: 8px; background: var(--leaf); border-radius: 4px; }
+  .back {
+    align-self: flex-start;
+    padding: 6px 14px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .back:hover { border-color: var(--leaf); }
+  h1 { margin: 0; font-weight: 700; font-size: 2rem; line-height: 1.2; }
+  .panel label, .panel legend { font-weight: 700; font-size: 0.95rem; }
+
+  textarea {
+    width: 100%;
+    min-height: 150px;
+    resize: vertical;
+    padding: 10px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    line-height: 1.45;
+  }
+  input[type="number"] {
+    width: 110px;
+    padding: 9px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .count { margin: 4px 0 0; color: var(--muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+  .hint { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .hint.bad { color: var(--danger); font-weight: 700; }
+  .msg { margin: 0; min-height: 1.4em; color: var(--danger); font-size: 0.95rem; }
+
+  .class-list { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+  .size-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  button.ghost {
+    font: inherit;
+    font-size: 1rem;
+    padding: 8px 14px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button.ghost:hover:not(:disabled) { border-color: var(--leaf); }
+  button.ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  button.primary {
+    font: inherit;
+    font-size: clamp(1.3rem, 2.4vw, 1.8rem);
+    font-weight: 700;
+    padding: 14px 40px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-fg);
+    cursor: pointer;
+  }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  fieldset { border: 1px solid var(--hairline); border-radius: 8px; margin: 0; padding: 10px 14px 14px; min-width: 0; }
+  legend { padding: 0 6px; }
+  .opt { display: flex; align-items: flex-start; gap: 10px; margin-top: 10px; font-weight: 400 !important; font-size: 1rem !important; }
+  .opt input { accent-color: var(--accent); width: 18px; height: 18px; margin-top: 3px; flex: none; }
+  .opt strong, .opt .plan { display: block; }
+  .opt .plan { color: var(--muted); font-variant-numeric: tabular-nums; }
+  fieldset .hint { margin-top: 10px; }
+
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  @media (max-width: 860px) {
+    body { padding-inline: 16px; }
+    .app { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .panel { order: -1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <section class="results" aria-label="Groups">
+    <div class="results-top">
+      <button id="make" class="primary" type="button">Make groups</button>
+      <p id="meta" class="meta" role="status" aria-live="polite"></p>
+    </div>
+    <p id="empty" class="empty">Add names on the right, then press Make groups.</p>
+    <ul id="groups" class="groups"></ul>
+  </section>
+
+  <aside class="panel">
+    <div class="title-block">
+      <a class="back" href="../">← Menu</a>
+      <div class="rule"></div>
+      <h1>Group Maker</h1>
+    </div>
+
+    <div>
+      <label for="entries">Names (separate with commas)</label>
+      <textarea id="entries" spellcheck="false" placeholder="Alice, Bob, Chloe, Daiki, Emi, Futoshi"></textarea>
+      <p id="count" class="count"></p>
+    </div>
+
+    <div class="class-list">
+      <p class="hint">Class list: saved in this browser only, never sent anywhere. Other Konoha tools can use it.</p>
+      <div class="btn-row">
+        <button id="loadClass" class="ghost" type="button">Load class list</button>
+        <button id="saveClass" class="ghost" type="button">Save as class list</button>
+        <button id="forgetClass" class="ghost" type="button">Delete class list</button>
+      </div>
+      <p id="classMsg" class="hint" role="status" aria-live="polite"></p>
+    </div>
+
+    <div>
+      <label for="size">Group size</label>
+      <div class="size-row">
+        <input id="size" type="number" min="2" max="50" step="1" value="4" inputmode="numeric">
+        <div class="btn-row" role="group" aria-label="Quick size">
+          <button class="ghost preset" type="button" data-size="2" aria-pressed="false">Pairs</button>
+          <button class="ghost preset" type="button" data-size="3" aria-pressed="false">3</button>
+          <button class="ghost preset" type="button" data-size="4" aria-pressed="false">4</button>
+          <button class="ghost preset" type="button" data-size="5" aria-pressed="false">5</button>
+          <button class="ghost preset" type="button" data-size="6" aria-pressed="false">6</button>
+        </div>
+      </div>
+    </div>
+
+    <fieldset>
+      <legend>If the class does not divide evenly</legend>
+      <label class="opt" for="optSmaller">
+        <input id="optSmaller" type="radio" name="remainder" value="smaller" checked>
+        <span class="opt-text"><strong>Smaller groups</strong><span id="planSmaller" class="plan"></span></span>
+      </label>
+      <label class="opt" for="optBigger">
+        <input id="optBigger" type="radio" name="remainder" value="bigger">
+        <span class="opt-text"><strong>Bigger groups</strong><span id="planBigger" class="plan"></span></span>
+      </label>
+      <p id="planNote" class="hint"></p>
+    </fieldset>
+
+    <p id="msg" class="msg" role="status" aria-live="polite"></p>
+    <p class="hint">Key: Space makes new groups.</p>
+  </aside>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'konoha.groups.v1';
+  const CLASS_KEY = 'konoha.classList';   // shared with other Konoha tools
+  const $ = (id) => document.getElementById(id);
+
+  const entriesEl = $('entries');
+  const countEl = $('count');
+  const sizeEl = $('size');
+  const makeBtn = $('make');
+  const metaEl = $('meta');
+  const emptyEl = $('empty');
+  const groupsEl = $('groups');
+  const planSmallerEl = $('planSmaller');
+  const planBiggerEl = $('planBigger');
+  const planNoteEl = $('planNote');
+  const msgEl = $('msg');
+  const loadClassBtn = $('loadClass');
+  const saveClassBtn = $('saveClass');
+  const forgetClassBtn = $('forgetClass');
+  const classMsg = $('classMsg');
+  const presetBtns = Array.from(document.querySelectorAll('.preset'));
+
+  const state = { groups: [] };   // [[name, ...], ...] as last made
+
+  // ---------- Names ----------
+  // Names are split on commas (including Japanese ones) and on new lines.
+  function parseNames() {
+    return entriesEl.value.split(/[,，、\r\n]+/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  function sizeValue() {
+    const v = parseInt(sizeEl.value, 10);
+    return isFinite(v) ? Math.min(50, Math.max(0, v)) : 0;
+  }
+
+  function mode() {
+    const checked = document.querySelector('input[name="remainder"]:checked');
+    return checked && checked.value === 'bigger' ? 'bigger' : 'smaller';
+  }
+
+  // ---------- Planning the group sizes ----------
+  // Smaller: add a group so none is over the size. Bigger: use fewer groups so none is under it.
+  // Either way the groups differ by at most one person.
+  function plan(n, size, how) {
+    const g = how === 'bigger' ? Math.max(1, Math.floor(n / size)) : Math.ceil(n / size);
+    const base = Math.floor(n / g);
+    const extra = n % g;
+    const sizes = [];
+    for (let i = 0; i < g; i++) sizes.push(i < extra ? base + 1 : base);
+    return sizes;
+  }
+
+  function describe(sizes) {
+    const word = sizes.length === 1 ? ' group' : ' groups';
+    if (sizes.every((s) => s === sizes[0])) return sizes.length + word + ' of ' + sizes[0];
+    return sizes.length + word + ' (' + sizes.join(', ') + ')';
+  }
+
+  // ---------- Shared class list (browser-side only) ----------
+  function readClassList() {
+    try {
+      const d = JSON.parse(localStorage.getItem(CLASS_KEY));
+      return d && Array.isArray(d.names) ? d.names.map(String) : [];
+    } catch (e) { return []; }
+  }
+
+  function writeClassList(names) {
+    try {
+      localStorage.setItem(CLASS_KEY, JSON.stringify({ names, saved: new Date().toISOString() }));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function clearClassList() {
+    try { localStorage.removeItem(CLASS_KEY); } catch (e) { /* storage unavailable */ }
+  }
+
+  function updateClassUI() {
+    const n = readClassList().length;
+    loadClassBtn.textContent = n ? `Load class list (${n})` : 'Load class list';
+    loadClassBtn.disabled = n === 0;
+    forgetClassBtn.disabled = n === 0;
+    saveClassBtn.disabled = parseNames().length === 0;
+  }
+
+  // ---------- Persistence (per-viewer convenience only) ----------
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        entries: entriesEl.value,
+        size: sizeEl.value,
+        mode: mode(),
+        groups: state.groups
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function load() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { d = null; }
+    if (d) {
+      if (typeof d.entries === 'string') entriesEl.value = d.entries;
+      if (d.size !== undefined && isFinite(parseInt(d.size, 10))) sizeEl.value = d.size;
+      if (d.mode === 'bigger') $('optBigger').checked = true;
+      if (Array.isArray(d.groups)) {
+        state.groups = d.groups.filter(Array.isArray).map((g) => g.map(String));
+      }
+    } else {
+      // First visit: start from the saved class list if there is one.
+      const names = readClassList();
+      if (names.length) entriesEl.value = names.join(', ');
+    }
+  }
+
+  // ---------- Display ----------
+  function refresh() {
+    const n = parseNames().length;
+    const size = sizeValue();
+    countEl.textContent = n + (n === 1 ? ' name' : ' names');
+
+    presetBtns.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.size) === size)));
+
+    let note = '';
+    let bad = false;
+    if (n >= 2 && size >= 2) {
+      const smaller = plan(n, size, 'smaller');
+      const bigger = plan(n, size, 'bigger');
+      planSmallerEl.textContent = describe(smaller);
+      planBiggerEl.textContent = describe(bigger);
+      const chosen = mode() === 'bigger' ? bigger : smaller;
+      if (Math.min(...chosen) < 2) {
+        note = 'One group would have only 1 person. Try bigger groups.';
+        bad = true;
+      } else if (n < size) {
+        note = 'There are fewer names than the group size, so everyone is in one group.';
+      } else if (smaller.join() === bigger.join()) {
+        note = 'The names divide evenly, so both choices give the same groups.';
+      }
+    } else {
+      planSmallerEl.textContent = '';
+      planBiggerEl.textContent = '';
+    }
+    planNoteEl.textContent = note;
+    planNoteEl.classList.toggle('bad', bad);
+
+    makeBtn.disabled = !(n >= 2 && size >= 2);
+    msgEl.textContent = n < 2 ? 'Add at least 2 names.' : size < 2 ? 'Group size must be 2 or more.' : '';
+
+    updateClassUI();
+    save();
+  }
+
+  function renderGroups() {
+    const gs = state.groups;
+    groupsEl.textContent = '';
+    emptyEl.hidden = gs.length > 0;
+    metaEl.textContent = gs.length ? describe(gs.map((g) => g.length)) : '';
+    makeBtn.textContent = gs.length ? 'Make new groups' : 'Make groups';
+
+    const label = gs.length && gs.every((g) => g.length === 2) ? 'Pair' : 'Group';
+    gs.forEach((members, i) => {
+      const li = document.createElement('li');
+      li.className = 'group';
+      const h = document.createElement('h2');
+      h.textContent = `${label} ${i + 1}`;
+      const ul = document.createElement('ul');
+      ul.className = 'members';
+      members.forEach((name) => {
+        const m = document.createElement('li');
+        m.className = 'member';
+        m.textContent = name;
+        ul.appendChild(m);
+      });
+      li.appendChild(h);
+      li.appendChild(ul);
+      groupsEl.appendChild(li);
+    });
+  }
+
+  // ---------- Making the groups ----------
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function make() {
+    const names = parseNames();
+    const size = sizeValue();
+    if (names.length < 2 || size < 2) return;
+    const sizes = plan(names.length, size, mode());
+    const pool = shuffle(names.slice());
+    const groups = [];
+    let at = 0;
+    sizes.forEach((s) => { groups.push(pool.slice(at, at + s)); at += s; });
+    state.groups = groups;
+    renderGroups();
+    save();
+  }
+
+  // ---------- Events ----------
+  makeBtn.addEventListener('click', make);
+  entriesEl.addEventListener('input', refresh);
+  sizeEl.addEventListener('input', refresh);
+  document.querySelectorAll('input[name="remainder"]').forEach((r) => r.addEventListener('change', refresh));
+
+  presetBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sizeEl.value = btn.dataset.size;
+      refresh();
+    });
+  });
+
+  loadClassBtn.addEventListener('click', () => {
+    const names = readClassList();
+    if (!names.length) return;
+    entriesEl.value = names.join(', ');
+    classMsg.textContent = `Loaded ${names.length} names.`;
+    refresh();
+  });
+
+  saveClassBtn.addEventListener('click', () => {
+    const names = parseNames();
+    if (!names.length) return;
+    writeClassList(names);
+    classMsg.textContent = `Saved ${names.length} names as the class list.`;
+    updateClassUI();
+  });
+
+  forgetClassBtn.addEventListener('click', () => {
+    if (!confirm('Delete the saved class list from this browser?')) return;
+    clearClassList();
+    classMsg.textContent = 'Class list deleted.';
+    updateClassUI();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
+    if (e.code === 'Space') {
+      e.preventDefault();
+      make();
+    }
+  });
+
+  // ---------- Init ----------
+  load();
+  renderGroups();
+  refresh();
+})();
+</script>
+</body>
+</html>
