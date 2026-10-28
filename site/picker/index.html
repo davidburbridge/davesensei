@@ -215,6 +215,7 @@
   details summary { cursor: pointer; font-weight: 700; font-size: 0.95rem; }
   #history { margin: 10px 0; padding-left: 26px; max-height: 170px; overflow-y: auto; font-size: 1rem; }
   #history li { padding: 1px 0; overflow-wrap: anywhere; }
+  .history-text { margin: 10px 0; max-height: 170px; overflow-y: auto; font-size: 1rem; overflow-wrap: anywhere; }
   .empty-note { color: var(--muted); font-size: 0.95rem; margin: 10px 0; }
 
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -323,6 +324,7 @@
     <details>
       <summary>History</summary>
       <p id="historyEmpty" class="empty-note">Winners will be listed here.</p>
+      <p id="historyText" class="history-text"></p>
       <ol id="history"></ol>
       <button id="clearHistory" class="ghost" type="button">Clear history</button>
     </details>
@@ -366,6 +368,7 @@
   const autoRemoveEl = $('autoRemove');
   const historyEl = $('history');
   const historyEmpty = $('historyEmpty');
+  const historyText = $('historyText');
   const resultEl = $('result');
   const winnerEl = $('winner');
   const modeListBtn = $('modeList');
@@ -385,7 +388,7 @@
     entries: [],                  // what the wheel currently shows
     rotation: 0,
     spinning: false,
-    history: [],
+    histories: { list: [], range: [] },   // winners, newest first, kept per mode
     lastWinner: -1
   };
 
@@ -399,7 +402,7 @@
         listEntries: state.listEntries,
         range: { min: minEl.value, max: maxEl.value, step: stepEl.value },
         removed: state.removed,
-        history: state.history,
+        histories: state.histories,
         duration: Number(durationEl.value),
         sound: soundEl.checked,
         autoRemove: autoRemoveEl.checked
@@ -415,7 +418,12 @@
       if (d.mode === 'list' || d.mode === 'range') state.mode = d.mode;
       if (Array.isArray(d.listEntries)) state.listEntries = d.listEntries.map(String);
       if (Array.isArray(d.removed)) state.removed = d.removed.map(String);
-      if (Array.isArray(d.history)) state.history = d.history.map(String);
+      if (d.histories) {
+        if (Array.isArray(d.histories.list)) state.histories.list = d.histories.list.map(String);
+        if (Array.isArray(d.histories.range)) state.histories.range = d.histories.range.map(String);
+      } else if (Array.isArray(d.history)) {
+        state.histories.list = d.history.map(String); // older saved format had one shared history
+      }
       if (d.range) {
         if (d.range.min !== undefined) minEl.value = d.range.min;
         if (d.range.max !== undefined) maxEl.value = d.range.max;
@@ -500,6 +508,7 @@
     modeRangeBtn.setAttribute('aria-pressed', String(mode === 'range'));
     listPanel.hidden = mode !== 'list';
     rangePanel.hidden = mode !== 'range';
+    renderHistory();
     refresh();
   }
 
@@ -691,8 +700,9 @@
     state.lastWinner = idx;
     const name = state.entries[idx];
 
-    state.history.unshift(name);
-    state.history = state.history.slice(0, 50);
+    const hist = state.histories[state.mode];
+    hist.unshift(name);
+    hist.length = Math.min(hist.length, 50);
     renderHistory();
     save();
 
@@ -727,14 +737,22 @@
     resultEl.hidden = true;
   }
 
+  // List mode shows one comma-separated line; range mode shows a numbered list.
   function renderHistory() {
+    const items = state.histories[state.mode];
+    const asText = state.mode === 'list';
+    historyText.hidden = !asText;
+    historyEl.hidden = asText;
+    historyText.textContent = asText ? items.join(', ') : '';
     historyEl.innerHTML = '';
-    state.history.forEach((name) => {
-      const li = document.createElement('li');
-      li.textContent = name;
-      historyEl.appendChild(li);
-    });
-    historyEmpty.hidden = state.history.length > 0;
+    if (!asText) {
+      items.forEach((name) => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        historyEl.appendChild(li);
+      });
+    }
+    historyEmpty.hidden = items.length > 0;
   }
 
   // ---------- Events ----------
@@ -775,7 +793,7 @@
   });
 
   $('clearHistory').addEventListener('click', () => {
-    state.history = [];
+    state.histories[state.mode] = [];
     renderHistory();
     save();
   });
