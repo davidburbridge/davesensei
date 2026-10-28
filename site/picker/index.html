@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Picker Wheel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<!--
+  STYLE (shared with the launcher; keep tools consistent)
+  surface #fafbf6 · tint #edf4e3 · hairline #cbd5c0 · ink #1e2b1e · muted #4f5e4f · leaf #4e9a2a
+  light background, leaf-green accent, sans serif, no small caps
+  title block: 80px x 8px leaf rule above a bold h1 · cards: tint background, 1px hairline, 8px radius
+  Layout: wheel on the left as the main object, one control panel on the right; stacks to one column on phones.
+-->
+<style>
+  :root {
+    --surface: #fafbf6;
+    --tint: #edf4e3;
+    --hairline: #cbd5c0;
+    --ink: #1e2b1e;
+    --muted: #4f5e4f;
+    --leaf: #4e9a2a;
+    --accent: #3f7f21;        /* leaf, darkened so white button text stays readable */
+    --accent-hover: #346b1b;
+    --accent-fg: #ffffff;
+    --danger: #a3262f;
+    --focus: rgba(78, 154, 42, 0.5);
+    --scrim: rgba(30, 43, 30, 0.55);
+    --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', Meiryo, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--surface); }
+
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 17px;
+    line-height: 1.5;
+    padding-inline: 24px;
+    padding-block: 24px 32px;
+  }
+
+  .app {
+    max-width: 1280px;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .stage { min-width: 0; display: flex; justify-content: center; padding-top: 32px; }
+
+  /* Wheel fits the screen height so it never runs off a projector. */
+  .wheel-wrap {
+    position: relative;
+    width: min(100%, calc(100vh - 110px), 760px);
+    aspect-ratio: 1;
+    max-width: 100%;
+  }
+  #wheel { width: 100%; height: 100%; display: block; cursor: pointer; touch-action: manipulation; }
+
+  .pointer {
+    position: absolute;
+    top: -26px;
+    left: 50%;
+    width: 0;
+    height: 0;
+    transform: translateX(-50%);
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-top: 46px solid var(--ink);
+    pointer-events: none;
+  }
+
+  .spin-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20%;
+    height: 20%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 5px solid var(--surface);
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-family: var(--font);
+    font-size: clamp(1.1rem, 3.2vw, 2rem);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    padding: 0;
+  }
+  .spin-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .spin-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .panel {
+    min-width: 0;
+    background: var(--tint);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .title-block { display: flex; flex-direction: column; gap: 12px; }
+  .rule { width: 80px; height: 8px; background: var(--leaf); border-radius: 4px; }
+  h1 {
+    margin: 0;
+    font-weight: 700;
+    font-size: 2rem;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+  .panel label, .panel legend { font-weight: 700; font-size: 0.95rem; }
+
+  /* Mode switch */
+  .modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 3px;
+    background: var(--surface);
+  }
+  .mode-btn {
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .mode-btn:hover { color: var(--ink); }
+  .mode-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+
+  .mode-panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+  textarea {
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    padding: 10px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    line-height: 1.45;
+  }
+
+  .range-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .range-grid label { display: flex; flex-direction: column; gap: 6px; }
+  .range-grid input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+  }
+  .range-msg { margin: 0; min-height: 1.4em; font-size: 0.95rem; color: var(--danger); }
+  .hint { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+  .count { margin: 0; color: var(--muted); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button.ghost {
+    font: inherit;
+    font-size: 1rem;
+    padding: 8px 14px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button.ghost:hover:not(:disabled) { border-color: var(--leaf); }
+  button.ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary {
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 700;
+    padding: 11px 22px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-fg);
+    cursor: pointer;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+
+  fieldset { border: 1px solid var(--hairline); border-radius: 8px; margin: 0; padding: 10px 14px 14px; min-width: 0; }
+  legend { padding: 0 6px; }
+  .opt { display: block; margin-top: 10px; font-weight: 400; font-size: 1rem; }
+  .opt input[type="range"] { width: 100%; display: block; margin-top: 6px; accent-color: var(--accent); }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-weight: 400; font-size: 1rem; }
+  .check input { accent-color: var(--accent); width: 18px; height: 18px; }
+  output { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+  details summary { cursor: pointer; font-weight: 700; font-size: 0.95rem; }
+  #history { margin: 10px 0; padding-left: 26px; max-height: 170px; overflow-y: auto; font-size: 1rem; }
+  #history li { padding: 1px 0; overflow-wrap: anywhere; }
+  .empty-note { color: var(--muted); font-size: 0.95rem; margin: 10px 0; }
+
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 10;
+  }
+  .result-card {
+    background: var(--tint);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 36px 40px;
+    text-align: center;
+    width: min(100%, 640px);
+  }
+  .result-label { margin: 0; color: var(--muted); font-size: 1rem; font-weight: 700; }
+  .winner {
+    margin: 10px 0 28px;
+    font-weight: 700;
+    font-size: clamp(2.6rem, 10vw, 5.5rem);
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+    font-variant-numeric: tabular-nums;
+  }
+  .result-card .btn-row { justify-content: center; }
+
+  @media (max-width: 860px) {
+    body { padding-inline: 16px; }
+    .app { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .stage { padding-top: 28px; }
+    .wheel-wrap { width: min(100%, 640px); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <section class="stage" aria-label="Wheel">
+    <div class="wheel-wrap">
+      <canvas id="wheel" role="img" aria-label="Spinning wheel"></canvas>
+      <div class="pointer" aria-hidden="true"></div>
+      <button id="spin" class="spin-btn" type="button">SPIN</button>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="title-block">
+      <div class="rule"></div>
+      <h1>Picker Wheel</h1>
+    </div>
+
+    <div class="modes" role="group" aria-label="Wheel type">
+      <button id="modeList" class="mode-btn" type="button" aria-pressed="true">List</button>
+      <button id="modeRange" class="mode-btn" type="button" aria-pressed="false">Number range</button>
+    </div>
+
+    <div id="listPanel" class="mode-panel">
+      <div>
+        <label for="entries">Entries (one per line)</label>
+        <textarea id="entries" spellcheck="false"></textarea>
+      </div>
+      <div class="btn-row">
+        <button id="shuffle" class="ghost" type="button">Shuffle</button>
+        <button id="sort" class="ghost" type="button">Sort A–Z</button>
+        <button id="clear" class="ghost" type="button">Clear</button>
+      </div>
+    </div>
+
+    <div id="rangePanel" class="mode-panel" hidden>
+      <div class="range-grid">
+        <label for="rangeMin">From
+          <input id="rangeMin" type="number" step="any" value="1" inputmode="decimal">
+        </label>
+        <label for="rangeMax">To
+          <input id="rangeMax" type="number" step="any" value="30" inputmode="decimal">
+        </label>
+        <label for="rangeStep">Step
+          <input id="rangeStep" type="number" step="any" min="0" value="1" inputmode="decimal">
+        </label>
+      </div>
+      <p id="rangeMsg" class="range-msg" role="status" aria-live="polite"></p>
+      <p class="hint">Both ends are included. Up to 500 numbers. On big ranges only some numbers are labelled, but every one can win.</p>
+      <div class="btn-row">
+        <button id="restore" class="ghost" type="button" disabled>Restore removed (0)</button>
+      </div>
+    </div>
+
+    <p class="count"><span id="count">0</span> on the wheel</p>
+
+    <fieldset>
+      <legend>Options</legend>
+      <label class="opt" for="duration">Spin time: <output id="durationOut">5</output> s
+        <input id="duration" type="range" min="2" max="15" value="5">
+      </label>
+      <label class="check" for="sound"><input id="sound" type="checkbox" checked> Tick sound</label>
+      <label class="check" for="autoRemove"><input id="autoRemove" type="checkbox"> Remove winner after each spin</label>
+    </fieldset>
+
+    <details>
+      <summary>History</summary>
+      <p id="historyEmpty" class="empty-note">Winners will be listed here.</p>
+      <ol id="history"></ol>
+      <button id="clearHistory" class="ghost" type="button">Clear history</button>
+    </details>
+  </aside>
+</div>
+
+<div id="result" class="overlay" role="dialog" aria-modal="true" aria-labelledby="winner" hidden>
+  <div class="result-card">
+    <p class="result-label">Winner</p>
+    <p id="winner" class="winner"></p>
+    <div class="btn-row">
+      <button id="closeResult" class="primary" type="button">Close</button>
+      <button id="removeWinner" class="ghost" type="button">Remove from wheel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'pickerWheel.v2';
+  const MAX_RANGE_COUNT = 500;
+  // Greens and deep teals on the leaf palette; all dark enough for white labels.
+  const COLORS = [
+    '#3f7f21', '#1f4d3a', '#5c7f1f', '#2a6b5e', '#2f5f1a',
+    '#4a6b3a', '#1e6a4a', '#6a7f2a', '#35603f', '#2b7a3b'
+  ];
+  const TWO_PI = Math.PI * 2;
+  const POINTER_ANGLE = -Math.PI / 2; // pointer is at the top
+  const FONT = '"Noto Sans JP", system-ui, sans-serif';
+
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('wheel');
+  const ctx = canvas.getContext('2d');
+  const entriesEl = $('entries');
+  const countEl = $('count');
+  const spinBtn = $('spin');
+  const durationEl = $('duration');
+  const durationOut = $('durationOut');
+  const soundEl = $('sound');
+  const autoRemoveEl = $('autoRemove');
+  const historyEl = $('history');
+  const historyEmpty = $('historyEmpty');
+  const resultEl = $('result');
+  const winnerEl = $('winner');
+  const modeListBtn = $('modeList');
+  const modeRangeBtn = $('modeRange');
+  const listPanel = $('listPanel');
+  const rangePanel = $('rangePanel');
+  const minEl = $('rangeMin');
+  const maxEl = $('rangeMax');
+  const stepEl = $('rangeStep');
+  const rangeMsg = $('rangeMsg');
+  const restoreBtn = $('restore');
+
+  const state = {
+    mode: 'list',                 // 'list' | 'range'
+    listEntries: ['Alice', 'Bob', 'Chloe', 'Daiki', 'Emi', 'Futoshi'],
+    removed: [],                  // range values taken off the wheel
+    entries: [],                  // what the wheel currently shows
+    rotation: 0,
+    spinning: false,
+    history: [],
+    lastWinner: -1
+  };
+
+  let audioCtx = null;
+
+  // ---------- Persistence (per-viewer convenience only) ----------
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        mode: state.mode,
+        listEntries: state.listEntries,
+        range: { min: minEl.value, max: maxEl.value, step: stepEl.value },
+        removed: state.removed,
+        history: state.history,
+        duration: Number(durationEl.value),
+        sound: soundEl.checked,
+        autoRemove: autoRemoveEl.checked
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d.mode === 'list' || d.mode === 'range') state.mode = d.mode;
+      if (Array.isArray(d.listEntries)) state.listEntries = d.listEntries.map(String);
+      if (Array.isArray(d.removed)) state.removed = d.removed.map(String);
+      if (Array.isArray(d.history)) state.history = d.history.map(String);
+      if (d.range) {
+        if (d.range.min !== undefined) minEl.value = d.range.min;
+        if (d.range.max !== undefined) maxEl.value = d.range.max;
+        if (d.range.step !== undefined) stepEl.value = d.range.step;
+      }
+      if (d.duration) durationEl.value = d.duration;
+      if (typeof d.sound === 'boolean') soundEl.checked = d.sound;
+      if (typeof d.autoRemove === 'boolean') autoRemoveEl.checked = d.autoRemove;
+    } catch (e) { /* ignore corrupt data */ }
+  }
+
+  // ---------- Building the entry set ----------
+  function parseList() {
+    return entriesEl.value.split('\n').map((s) => s.trim()).filter(Boolean);
+  }
+
+  function decimalsOf(x) {
+    const s = String(x);
+    if (/e/i.test(s)) return 6;
+    const i = s.indexOf('.');
+    return i < 0 ? 0 : Math.min(6, s.length - i - 1);
+  }
+
+  // Returns { values: string[], error: string }
+  function buildRange() {
+    const min = parseFloat(minEl.value);
+    const max = parseFloat(maxEl.value);
+    const step = parseFloat(stepEl.value);
+    if (!isFinite(min) || !isFinite(max) || !isFinite(step)) {
+      return { values: [], error: 'Enter a number in all three boxes.' };
+    }
+    if (step <= 0) return { values: [], error: 'Step must be greater than 0.' };
+    if (max <= min) return { values: [], error: '"To" must be larger than "From".' };
+    const count = Math.floor((max - min) / step + 1e-9) + 1;
+    if (count > MAX_RANGE_COUNT) {
+      return { values: [], error: `That is ${count.toLocaleString()} numbers. The limit is ${MAX_RANGE_COUNT}. Raise the step.` };
+    }
+    if (count < 2) return { values: [], error: 'The range needs at least two numbers.' };
+    const d = Math.max(decimalsOf(min), decimalsOf(step));
+    const values = [];
+    for (let i = 0; i < count; i++) values.push((min + i * step).toFixed(d));
+    return { values, error: '' };
+  }
+
+  function recompute() {
+    if (state.mode === 'list') {
+      state.entries = state.listEntries.slice();
+      rangeMsg.textContent = '';
+    } else {
+      const r = buildRange();
+      rangeMsg.textContent = r.error;
+      const gone = new Set(state.removed);
+      state.entries = r.values.filter((v) => !gone.has(v));
+    }
+  }
+
+  function refresh() {
+    recompute();
+    const n = state.entries.length;
+    countEl.textContent = n + (state.mode === 'range' ? (n === 1 ? ' number' : ' numbers') : (n === 1 ? ' entry' : ' entries'));
+    restoreBtn.textContent = `Restore removed (${state.removed.length})`;
+    restoreBtn.disabled = state.removed.length === 0;
+    spinBtn.disabled = state.spinning || n < 2;
+    draw();
+    save();
+  }
+
+  function syncFromTextarea() {
+    state.listEntries = parseList();
+    refresh();
+  }
+
+  function syncToTextarea() {
+    entriesEl.value = state.listEntries.join('\n');
+    refresh();
+  }
+
+  function setMode(mode) {
+    if (state.spinning || mode === state.mode) return;
+    state.mode = mode;
+    modeListBtn.setAttribute('aria-pressed', String(mode === 'list'));
+    modeRangeBtn.setAttribute('aria-pressed', String(mode === 'range'));
+    listPanel.hidden = mode !== 'list';
+    rangePanel.hidden = mode !== 'range';
+    refresh();
+  }
+
+  // ---------- Drawing ----------
+  function cssVar(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const size = Math.round(canvas.clientWidth * dpr);
+    if (size > 0 && (canvas.width !== size || canvas.height !== size)) {
+      canvas.width = size;
+      canvas.height = size;
+    }
+    draw();
+  }
+
+  function fitText(text, maxWidth, startSize) {
+    let size = Math.floor(startSize);
+    ctx.font = `700 ${size}px ${FONT}`;
+    while (size > 11 && ctx.measureText(text).width > maxWidth) {
+      size -= 1;
+      ctx.font = `700 ${size}px ${FONT}`;
+    }
+    if (ctx.measureText(text).width > maxWidth) {
+      let t = text;
+      while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
+      return t + '…';
+    }
+    return text;
+  }
+
+  function draw() {
+    const w = canvas.width;
+    if (!w) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cx = w / 2;
+    const cy = w / 2;
+    const ringW = w * 0.012;
+    const radius = w / 2 - ringW;
+    const n = state.entries.length;
+    const ring = cssVar('--ink', '#1e2b1e');
+
+    ctx.clearRect(0, 0, w, w);
+
+    if (n === 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, TWO_PI);
+      ctx.fillStyle = cssVar('--tint', '#edf4e3');
+      ctx.fill();
+      ctx.lineWidth = ringW;
+      ctx.strokeStyle = ring;
+      ctx.stroke();
+      ctx.fillStyle = cssVar('--muted', '#4f5e4f');
+      ctx.font = `700 ${w * 0.04}px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(state.mode === 'range' ? 'Check the range' : 'Add some entries', cx, cy - w * 0.14);
+      return;
+    }
+
+    const seg = TWO_PI / n;
+    // On crowded wheels label every k-th segment so text stays legible.
+    const arcAtLabel = radius * 0.8 * seg;
+    const k = Math.max(1, Math.ceil((14 * dpr) / arcAtLabel));
+
+    for (let i = 0; i < n; i++) {
+      const start = state.rotation + i * seg;
+      let colorIdx = i % COLORS.length;
+      // Avoid the last segment matching the first one across the seam.
+      if (i === n - 1 && n > 1 && colorIdx === 0) colorIdx = 4;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, start, start + seg);
+      ctx.closePath();
+      ctx.fillStyle = COLORS[colorIdx];
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, w * 0.002);
+      ctx.strokeStyle = n > 150 ? COLORS[colorIdx] : 'rgba(255,255,255,0.75)';
+      ctx.stroke();
+    }
+
+    for (let i = 0; i < n; i += k) {
+      const start = state.rotation + i * seg;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(start + seg / 2);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      const maxWidth = radius * 0.7;
+      const maxFont = Math.min(w * 0.065, radius * seg * k * 0.45);
+      const label = fitText(state.entries[i], maxWidth, Math.max(12, maxFont));
+      ctx.fillText(label, radius * 0.93, 0);
+      ctx.restore();
+    }
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, TWO_PI);
+    ctx.lineWidth = ringW;
+    ctx.strokeStyle = ring;
+    ctx.stroke();
+  }
+
+  // ---------- Winner maths ----------
+  function indexAtPointer(rotation) {
+    const n = state.entries.length;
+    const seg = TWO_PI / n;
+    let a = (POINTER_ANGLE - rotation) % TWO_PI;
+    if (a < 0) a += TWO_PI;
+    return Math.min(n - 1, Math.floor(a / seg));
+  }
+
+  // ---------- Sound ----------
+  function tick() {
+    if (!soundEl.checked || !audioCtx) return;
+    try {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 900;
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.05);
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  function prepareAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { audioCtx = null; }
+  }
+
+  // ---------- Spinning ----------
+  const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
+
+  function spin() {
+    if (state.spinning || state.entries.length < 2) return;
+    prepareAudio();
+
+    const n = state.entries.length;
+    const seg = TWO_PI / n;
+    const duration = Number(durationEl.value) * 1000;
+
+    // Pick the winner uniformly first, then land the pointer inside that segment.
+    const winnerIdx = Math.floor(Math.random() * n);
+    const frac = 0.1 + Math.random() * 0.8;
+    const targetMod = POINTER_ANGLE - (winnerIdx + frac) * seg;
+    let delta = (targetMod - state.rotation) % TWO_PI;
+    if (delta < 0) delta += TWO_PI;
+    const totalDelta = delta + (4 + Math.floor(Math.random() * 3)) * TWO_PI;
+
+    const startRot = state.rotation;
+    const startTime = performance.now();
+    let lastIdx = indexAtPointer(startRot);
+    let lastTick = 0;
+
+    state.spinning = true;
+    spinBtn.disabled = true;
+
+    function frame(now) {
+      const t = Math.min(1, (now - startTime) / duration);
+      state.rotation = startRot + totalDelta * easeOutQuart(t);
+
+      const idx = indexAtPointer(state.rotation);
+      // Throttle ticks so very fast passes on crowded wheels don't buzz.
+      if (idx !== lastIdx && now - lastTick > 30) { tick(); lastTick = now; }
+      lastIdx = idx;
+      draw();
+
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        state.rotation %= TWO_PI;
+        finish(winnerIdx);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function finish(idx) {
+    state.spinning = false;
+    state.lastWinner = idx;
+    const name = state.entries[idx];
+
+    state.history.unshift(name);
+    state.history = state.history.slice(0, 50);
+    renderHistory();
+    save();
+
+    winnerEl.textContent = name;
+    resultEl.hidden = false;
+    $('closeResult').focus();
+
+    spinBtn.disabled = state.entries.length < 2;
+    if (autoRemoveEl.checked) removeWinner();
+  }
+
+  function closeResult() {
+    resultEl.hidden = true;
+    spinBtn.focus();
+  }
+
+  function removeWinner() {
+    const idx = state.lastWinner;
+    if (idx >= 0 && idx < state.entries.length) {
+      const name = state.entries[idx];
+      if (state.mode === 'list') {
+        const at = state.listEntries.indexOf(name);
+        if (at >= 0) state.listEntries.splice(at, 1);
+        state.lastWinner = -1;
+        syncToTextarea();
+      } else {
+        state.removed.push(name);
+        state.lastWinner = -1;
+        refresh();
+      }
+    }
+    resultEl.hidden = true;
+  }
+
+  function renderHistory() {
+    historyEl.innerHTML = '';
+    state.history.forEach((name) => {
+      const li = document.createElement('li');
+      li.textContent = name;
+      historyEl.appendChild(li);
+    });
+    historyEmpty.hidden = state.history.length > 0;
+  }
+
+  // ---------- Events ----------
+  modeListBtn.addEventListener('click', () => setMode('list'));
+  modeRangeBtn.addEventListener('click', () => setMode('range'));
+
+  entriesEl.addEventListener('input', syncFromTextarea);
+  spinBtn.addEventListener('click', spin);
+  canvas.addEventListener('click', spin);
+
+  [minEl, maxEl, stepEl].forEach((el) => {
+    el.addEventListener('input', () => {
+      state.removed = []; // a new range starts with every number back on the wheel
+      refresh();
+    });
+  });
+  restoreBtn.addEventListener('click', () => { state.removed = []; refresh(); });
+
+  $('shuffle').addEventListener('click', () => {
+    const a = parseList();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    state.listEntries = a;
+    syncToTextarea();
+  });
+
+  $('sort').addEventListener('click', () => {
+    state.listEntries = parseList().sort((x, y) =>
+      x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' }));
+    syncToTextarea();
+  });
+
+  $('clear').addEventListener('click', () => {
+    state.listEntries = [];
+    syncToTextarea();
+  });
+
+  $('clearHistory').addEventListener('click', () => {
+    state.history = [];
+    renderHistory();
+    save();
+  });
+
+  $('closeResult').addEventListener('click', closeResult);
+  $('removeWinner').addEventListener('click', removeWinner);
+  resultEl.addEventListener('click', (e) => { if (e.target === resultEl) closeResult(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !resultEl.hidden) closeResult();
+  });
+
+  durationEl.addEventListener('input', () => {
+    durationOut.textContent = durationEl.value;
+    save();
+  });
+  soundEl.addEventListener('change', save);
+  autoRemoveEl.addEventListener('change', save);
+
+  new ResizeObserver(resizeCanvas).observe(canvas);
+  // Redraw once web fonts finish loading.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => draw());
+
+  // ---------- Init ----------
+  load();
+  durationOut.textContent = durationEl.value;
+  entriesEl.value = state.listEntries.join('\n');
+  modeListBtn.setAttribute('aria-pressed', String(state.mode === 'list'));
+  modeRangeBtn.setAttribute('aria-pressed', String(state.mode === 'range'));
+  listPanel.hidden = state.mode !== 'list';
+  rangePanel.hidden = state.mode !== 'range';
+  renderHistory();
+  resizeCanvas();
+  refresh();
+})();
+</script>
+</body>
+</html>

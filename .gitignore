@@ -1,0 +1,14 @@
+# Never commit secrets or student data
+id_*
+*.pem
+*.key
+*.ppk
+.env
+.env.*
+*.csv
+students*/
+
+# Editor and OS clutter
+.DS_Store
+Thumbs.db
+*.tmp
