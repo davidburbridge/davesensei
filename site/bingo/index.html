@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bingo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap">
+<style>
+  :root {
+    --surface: #fafbf6;
+    --tint: #edf4e3;
+    --hairline: #cbd5c0;
+    --ink: #1e2b1e;
+    --muted: #4f5e4f;
+    --leaf: #4e9a2a;
+    --accent: #3f7f21;
+    --accent-hover: #346b1b;
+    --accent-fg: #ffffff;
+    --danger: #a3262f;
+    --focus: rgba(78, 154, 42, 0.5);
+    --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', Meiryo, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--surface); }
+  body { margin: 0; background: var(--surface); color: var(--ink); font-family: var(--font); line-height: 1.5; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 56px; display: flex; flex-direction: column; gap: 20px; }
+  .title-block { display: flex; flex-direction: column; gap: 12px; }
+  .rule { width: 80px; height: 8px; background: var(--leaf); border-radius: 4px; }
+  .back { align-self: flex-start; padding: 6px 14px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 700; text-decoration: none; }
+  .back:hover { border-color: var(--leaf); }
+  h1 { margin: 0; font-weight: 700; font-size: 2.2rem; line-height: 1.2; }
+  .lead { margin: 0; color: var(--muted); font-size: 1.1rem; }
+  label, legend { font-weight: 700; }
+  textarea {
+    width: 100%; min-height: 240px; margin-top: 6px; padding: 12px 14px; resize: vertical;
+    border: 1px solid var(--hairline); border-radius: 8px; background: #fff; color: var(--ink);
+    font: inherit; font-size: 1.1rem; line-height: 1.5;
+  }
+  textarea:focus, select:focus, input:focus-visible, button:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  .count { margin: 6px 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .count.bad { color: var(--danger); font-weight: 700; }
+  .opts { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; padding: 14px 16px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; }
+  .opts label { font-weight: 400; display: flex; align-items: center; gap: 8px; }
+  .opts input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+  select { font: inherit; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: #fff; color: var(--ink); }
+  button.primary {
+    align-self: flex-start; padding: 12px 26px; border: 0; border-radius: 8px; cursor: pointer;
+    background: var(--accent); color: var(--accent-fg); font: inherit; font-size: 1.15rem; font-weight: 700;
+  }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .msg { margin: 0; min-height: 1.5em; color: var(--danger); font-weight: 700; }
+  .note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  details { border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 14px; }
+  summary { cursor: pointer; font-weight: 700; }
+  code { background: var(--tint); padding: 1px 6px; border-radius: 4px; }
+  pre { background: var(--tint); padding: 10px 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+</style>
+</head>
+<body>
+<main>
+  <div class="title-block">
+    <a class="back" href="/">← Menu</a>
+    <div class="rule"></div>
+    <h1>Bingo</h1>
+    <p class="lead">Paste your words or phrases. You get a teacher link and a student link. Each student gets their own random board.</p>
+  </div>
+
+  <div>
+    <label for="entries">Words or phrases (commas or new lines)</label>
+    <textarea id="entries" spellcheck="false" placeholder="apple, banana, &quot;Hello, how are you?&quot;, ..."></textarea>
+    <p class="count" id="count">0 items. Use 9 to 100, up to 40 characters each.</p>
+  </div>
+
+  <details>
+    <summary>How to type the list</summary>
+    <p><strong>One per line:</strong> no quotation marks needed, commas are fine inside a line.</p>
+<pre>apple
+Hello, how are you?
+I'd like a coffee</pre>
+    <p><strong>All on one line, separated by commas:</strong> put quotation marks around any item that contains a comma.</p>
+<pre>apple, banana, "Hello, how are you?", coffee</pre>
+    <p class="note">Repeated items are removed. Extra spaces are tidied.</p>
+  </details>
+
+  <div class="opts">
+    <label><input type="checkbox" id="free"> Free space in the middle</label>
+    <label>Board size
+      <select id="grid">
+        <option value="0">Automatic</option>
+        <option value="3">3 × 3</option>
+        <option value="4">4 × 4</option>
+        <option value="5">5 × 5</option>
+      </select>
+    </label>
+  </div>
+  <p class="note" id="gridNote"></p>
+
+  <button class="primary" id="create" type="button" disabled>Create session</button>
+  <p class="msg" id="msg" role="alert"></p>
+  <p class="note">The session lasts 24 hours, then is deleted. Student names are never collected.</p>
+</main>
+
+<script>
+  var MIN_ITEMS = 9, MAX_ITEMS = 100, MAX_LEN = 40;
+  var entriesEl = document.getElementById('entries');
+  var countEl = document.getElementById('count');
+  var freeEl = document.getElementById('free');
+  var gridEl = document.getElementById('grid');
+  var gridNote = document.getElementById('gridNote');
+  var createBtn = document.getElementById('create');
+  var msgEl = document.getElementById('msg');
+
+  function clean(s) {
+    return s.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function len(s) { return Array.from(s).length; }
+
+  // Several lines: one item per line. One line: commas, with quotation marks for items that contain a comma.
+  function parseEntries(text) {
+    text = text.replace(/\r\n?/g, '\n').trim();
+    if (!text) return { items: [] };
+    if (text.indexOf('\n') !== -1) {
+      return { items: text.split('\n').map(clean).filter(Boolean) };
+    }
+    var out = [], cur = '', quoted = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (quoted) {
+        if (ch === '"' || ch === '”') {
+          if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++; } else quoted = false;
+        } else cur += ch;
+      } else if ((ch === '"' || ch === '“') && cur.trim() === '') {
+        quoted = true; cur = '';
+      } else if (ch === ',' || ch === '，' || ch === '、') {
+        out.push(cur); cur = '';
+      } else cur += ch;
+    }
+    if (quoted) return { items: [], error: 'A quotation mark is not closed.' };
+    out.push(cur);
+    return { items: out.map(clean).filter(Boolean) };
+  }
+
+  function dedupe(items) {
+    var seen = {}, out = [];
+    items.forEach(function (s) {
+      var k = s.toLowerCase();
+      if (!seen[k]) { seen[k] = 1; out.push(s); }
+    });
+    return out;
+  }
+
+  function need(g, free) { return g * g - (free && g % 2 === 1 ? 1 : 0); }
+
+  function analyse() {
+    var parsed = parseEntries(entriesEl.value);
+    var items = dedupe(parsed.items);
+    var removed = parsed.items.length - items.length;
+    var problem = parsed.error || '';
+    var long = items.filter(function (s) { return len(s) > MAX_LEN; })[0];
+    if (!problem && long) problem = '"' + Array.from(long).slice(0, 20).join('') + '..." is ' + len(long) + ' characters (the limit is ' + MAX_LEN + ').';
+    if (!problem && items.length > MAX_ITEMS) problem = 'Too many items: ' + items.length + ' (the most is ' + MAX_ITEMS + ').';
+    var g = Number(gridEl.value);
+    if (!problem && items.length && g && items.length < need(g, freeEl.checked)) {
+      problem = 'A ' + g + '×' + g + ' board needs at least ' + need(g, freeEl.checked) + ' items.';
+    }
+    return { items: items, removed: removed, problem: problem };
+  }
+
+  function update() {
+    var a = analyse();
+    var text = a.items.length + (a.items.length === 1 ? ' item' : ' items');
+    if (a.removed) text += ' (' + a.removed + ' repeated removed)';
+    var ok = !a.problem && a.items.length >= MIN_ITEMS;
+    if (a.problem) text += '. ' + a.problem;
+    else if (a.items.length < MIN_ITEMS) text += '. Use 9 to 100, up to 40 characters each.';
+    countEl.textContent = text;
+    countEl.className = 'count' + (a.problem || (a.items.length && a.items.length < MIN_ITEMS) ? ' bad' : '');
+    createBtn.disabled = !ok;
+    var g = Number(gridEl.value);
+    var auto = a.items.length >= 25 ? 5 : a.items.length >= 16 ? 4 : 3;
+    var shown = g || auto;
+    gridNote.textContent = (freeEl.checked && shown % 2 === 0)
+      ? 'A free space needs a 3×3 or 5×5 board, so it will be left out on ' + shown + '×' + shown + '.'
+      : (g ? '' : 'Automatic: ' + auto + '×' + auto + ' board' + (a.items.length < 9 ? '' : ' for ' + a.items.length + ' items') + '.');
+  }
+
+  entriesEl.addEventListener('input', update);
+  freeEl.addEventListener('change', update);
+  gridEl.addEventListener('change', update);
+  update();
+
+  createBtn.addEventListener('click', function () {
+    var a = analyse();
+    if (a.problem || a.items.length < MIN_ITEMS) return;
+    createBtn.disabled = true;
+    msgEl.textContent = '';
+    fetch('/bingo/api/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: a.items, free: freeEl.checked, grid: Number(gridEl.value) })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, body: j }; });
+    }).then(function (res) {
+      if (res.ok) { location.href = '/bingo/t/' + res.body.teacher; return; }
+      msgEl.textContent = res.body.error || 'Something went wrong.';
+      createBtn.disabled = false;
+    }).catch(function () {
+      msgEl.textContent = 'Could not reach the server. Check your connection and try again.';
+      createBtn.disabled = false;
+    });
+  });
+</script>
+</body>
+</html>

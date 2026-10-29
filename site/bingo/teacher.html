@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bingo (teacher)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap">
+<style>
+  :root {
+    --surface: #fafbf6;
+    --tint: #edf4e3;
+    --hairline: #cbd5c0;
+    --ink: #1e2b1e;
+    --muted: #4f5e4f;
+    --leaf: #4e9a2a;
+    --accent: #3f7f21;
+    --accent-hover: #346b1b;
+    --accent-fg: #ffffff;
+    --danger: #a3262f;
+    --focus: rgba(78, 154, 42, 0.5);
+    --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', Meiryo, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--surface); }
+  body { margin: 0; background: var(--surface); color: var(--ink); font-family: var(--font); line-height: 1.5; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px 20px 48px; display: flex; flex-direction: column; gap: 18px; }
+  .title-block { display: flex; flex-direction: column; gap: 12px; }
+  .rule { width: 80px; height: 8px; background: var(--leaf); border-radius: 4px; }
+  .back { align-self: flex-start; padding: 6px 14px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 700; text-decoration: none; }
+  .back:hover { border-color: var(--leaf); }
+  h1 { margin: 0; font-weight: 700; font-size: 2rem; line-height: 1.2; }
+  .join { padding: 16px 20px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+  .join .label { font-weight: 700; color: var(--muted); }
+  .join .url { font-size: clamp(1.3rem, 4vw, 2.2rem); font-weight: 700; overflow-wrap: anywhere; user-select: all; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .wheelbox { position: relative; width: 100%; max-width: 620px; margin: 0 auto; }
+  canvas { display: block; width: 100%; aspect-ratio: 1 / 1; }
+  .pointer { position: absolute; left: 50%; top: -6px; width: 0; height: 0; transform: translateX(-50%);
+    border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 30px solid var(--ink); }
+  .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .result { min-height: 7.5rem; padding: 16px 20px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .result .big { font-size: clamp(2rem, 6vw, 3.6rem); font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+  .result .idle { color: var(--muted); font-size: 1.2rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button.primary { padding: 14px 32px; border: 0; border-radius: 8px; cursor: pointer; background: var(--accent); color: var(--accent-fg); font: inherit; font-size: 1.3rem; font-weight: 700; }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost { padding: 10px 16px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; }
+  button.ghost:hover { border-color: var(--leaf); }
+  button.danger { color: var(--danger); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .sound { display: flex; align-items: center; gap: 8px; }
+  .sound input { width: 20px; height: 20px; accent-color: var(--accent); }
+  h2 { margin: 0; font-size: 1.2rem; }
+  .count { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+  ol.history { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow-y: auto; }
+  ol.history li { padding: 6px 12px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; font-size: 1.1rem; overflow-wrap: anywhere; }
+  ol.history li .n { display: inline-block; min-width: 2.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .panel { padding: 16px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="title-block">
+    <a class="back" href="/">← Menu</a>
+    <div class="rule"></div>
+    <h1>Bingo (teacher)</h1>
+  </div>
+
+  <div class="panel" id="gone" hidden>
+    <strong>This session has ended or the link is wrong.</strong>
+    <p class="note"><a href="/bingo/">Start a new bingo session</a></p>
+  </div>
+
+  <div id="app" hidden>
+    <div class="join">
+      <span class="label">Students open:</span>
+      <span class="url" id="studentUrl"></span>
+      <button type="button" class="ghost" id="copy">Copy link</button>
+    </div>
+
+    <div class="layout" style="margin-top:18px">
+      <div class="wheelbox">
+        <canvas id="wheel" aria-label="Wheel of items not yet called"></canvas>
+        <div class="pointer" aria-hidden="true"></div>
+      </div>
+
+      <div class="side">
+        <div class="result" aria-live="polite"><span class="idle" id="result">Press Spin to call the first item.</span></div>
+        <div class="row">
+          <button type="button" class="primary" id="spin">Spin</button>
+          <label class="sound"><input type="checkbox" id="sound" checked> Sound</label>
+        </div>
+
+        <div>
+          <h2>Called <span class="count" id="calledCount"></span></h2>
+          <ol class="history" id="history"></ol>
+        </div>
+
+        <div class="row">
+          <button type="button" class="ghost" id="reset">Reset calls</button>
+          <button type="button" class="ghost danger" id="end">End session</button>
+        </div>
+        <p class="note" id="until"></p>
+        <p class="note">Keep this page's address private: it controls the session. Called items are remembered in this browser until the session ends.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  var m = location.pathname.match(/\/bingo\/t\/([A-Za-z0-9_-]{24})/);
+  var token = m ? m[1] : null;
+  var COOKIE = 'bingo_called';
+  var COOKIE_PATH = '/bingo/t/' + token;
+
+  var TWO_PI = Math.PI * 2;
+  var POINTER_ANGLE = -Math.PI / 2;
+  var FONT = "'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', Meiryo, Arial, sans-serif";
+  var COLORS = ['#3f7f21', '#1f7a6d', '#2f6f9f', '#7a5a1f', '#5b7f2a', '#1b5e58', '#4b6a8f', '#8a6d2f'];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $('wheel');
+  var ctx = canvas.getContext('2d');
+
+  var info = null;      // { items, grid, free, expires, student }
+  var called = [];      // item indexes, oldest first
+  var remaining = [];   // item indexes still on the wheel
+  var rotation = 0;
+  var spinning = false;
+  var audioCtx = null;
+
+  // ---------- Cookie ----------
+  function readCalled() {
+    try {
+      var parts = document.cookie.split('; ');
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].indexOf(COOKIE + '=') === 0) {
+          var v = JSON.parse(decodeURIComponent(parts[i].slice(COOKIE.length + 1)));
+          if (Array.isArray(v)) return v;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return [];
+  }
+  function writeCalled() {
+    document.cookie = COOKIE + '=' + encodeURIComponent(JSON.stringify(called)) + '; path=' + COOKIE_PATH +
+      '; expires=' + new Date(info.expires).toUTCString() + '; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+  }
+  function clearCalled() {
+    document.cookie = COOKIE + '=; path=' + COOKIE_PATH + '; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  }
+
+  // ---------- State ----------
+  function refreshRemaining() {
+    var done = {};
+    called.forEach(function (i) { done[i] = 1; });
+    remaining = [];
+    info.items.forEach(function (_, i) { if (!done[i]) remaining.push(i); });
+  }
+
+  function renderHistory() {
+    var ol = $('history');
+    ol.textContent = '';
+    for (var k = called.length - 1; k >= 0; k--) {
+      var li = document.createElement('li');
+      var n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = (k + 1) + '.';
+      li.appendChild(n);
+      li.appendChild(document.createTextNode(info.items[called[k]]));
+      ol.appendChild(li);
+    }
+    $('calledCount').textContent = called.length + ' of ' + info.items.length;
+    $('spin').disabled = spinning || remaining.length === 0;
+    if (!remaining.length && !spinning) {
+      showResult('', 'Every item has been called.');
+    }
+  }
+
+  function showResult(big, idle) {
+    var el = $('result');
+    el.className = big ? 'big' : 'idle';
+    el.textContent = big || idle;
+  }
+
+  // ---------- Drawing ----------
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var size = Math.round(canvas.clientWidth * dpr);
+    if (size > 0 && (canvas.width !== size || canvas.height !== size)) { canvas.width = size; canvas.height = size; }
+    draw();
+  }
+
+  function fitText(text, maxWidth, startSize) {
+    var size = Math.floor(startSize);
+    ctx.font = '700 ' + size + 'px ' + FONT;
+    while (size > 11 && ctx.measureText(text).width > maxWidth) { size -= 1; ctx.font = '700 ' + size + 'px ' + FONT; }
+    if (ctx.measureText(text).width > maxWidth) {
+      var t = text;
+      while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
+      return t + '…';
+    }
+    return text;
+  }
+
+  function draw() {
+    var w = canvas.width;
+    if (!w || !info) return;
+    var dpr = window.devicePixelRatio || 1;
+    var cx = w / 2, cy = w / 2, ringW = w * 0.012, radius = w / 2 - ringW;
+    var n = remaining.length;
+    ctx.clearRect(0, 0, w, w);
+
+    if (n === 0) {
+      ctx.beginPath(); ctx.arc(cx, cy, radius, 0, TWO_PI);
+      ctx.fillStyle = '#edf4e3'; ctx.fill();
+      ctx.lineWidth = ringW; ctx.strokeStyle = '#1e2b1e'; ctx.stroke();
+      ctx.fillStyle = '#4f5e4f'; ctx.font = '700 ' + (w * 0.05) + 'px ' + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('All called', cx, cy);
+      return;
+    }
+
+    var seg = TWO_PI / n;
+    var k = Math.max(1, Math.ceil((14 * dpr) / (radius * 0.8 * seg)));
+    for (var i = 0; i < n; i++) {
+      var start = rotation + i * seg;
+      var ci = i % COLORS.length;
+      if (i === n - 1 && n > 1 && ci === 0) ci = 4;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, radius, start, start + seg); ctx.closePath();
+      ctx.fillStyle = COLORS[ci]; ctx.fill();
+      ctx.lineWidth = Math.max(1, w * 0.002); ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.stroke();
+    }
+    for (var j = 0; j < n; j += k) {
+      var s0 = rotation + j * seg;
+      ctx.save();
+      ctx.translate(cx, cy); ctx.rotate(s0 + seg / 2);
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffffff';
+      var maxFont = Math.min(w * 0.065, radius * seg * k * 0.45);
+      ctx.fillText(fitText(info.items[remaining[j]], radius * 0.7, Math.max(12, maxFont)), radius * 0.93, 0);
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, TWO_PI);
+    ctx.lineWidth = ringW; ctx.strokeStyle = '#1e2b1e'; ctx.stroke();
+  }
+
+  function indexAtPointer(rot) {
+    var seg = TWO_PI / remaining.length;
+    var a = (POINTER_ANGLE - rot) % TWO_PI;
+    if (a < 0) a += TWO_PI;
+    return Math.min(remaining.length - 1, Math.floor(a / seg));
+  }
+
+  // ---------- Sound ----------
+  function prepareAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { audioCtx = null; }
+  }
+  function tick() {
+    if (!$('sound').checked || !audioCtx) return;
+    try {
+      var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = 'square'; osc.frequency.value = 900;
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+    } catch (e) { /* audio unavailable */ }
+  }
+  function chime() {
+    if (!$('sound').checked || !audioCtx) return;
+    try {
+      [660, 880].forEach(function (f, i) {
+        var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        var t0 = audioCtx.currentTime + i * 0.14;
+        osc.type = 'sine'; osc.frequency.value = f;
+        gain.gain.setValueAtTime(0.12, t0);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t0); osc.stop(t0 + 0.35);
+      });
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  // ---------- Spinning ----------
+  function randomInt(n) {
+    var a = new Uint32Array(1);
+    var limit = Math.floor(4294967296 / n) * n, v;
+    do { crypto.getRandomValues(a); v = a[0]; } while (v >= limit);
+    return v % n;
+  }
+  function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function spin() {
+    if (spinning || !remaining.length) return;
+    prepareAudio();
+    var n = remaining.length, seg = TWO_PI / n;
+    var winnerPos = randomInt(n);
+    var frac = 0.1 + Math.random() * 0.8;
+    var targetMod = POINTER_ANGLE - (winnerPos + frac) * seg;
+    var delta = (targetMod - rotation) % TWO_PI;
+    if (delta < 0) delta += TWO_PI;
+    var totalDelta = delta + (4 + randomInt(3)) * TWO_PI;
+    var startRot = rotation, startTime = performance.now(), duration = 4500;
+    var lastIdx = indexAtPointer(startRot), lastTick = 0;
+
+    spinning = true;
+    $('spin').disabled = true;
+    showResult('', '…');
+
+    function frame(now) {
+      var t = Math.min(1, (now - startTime) / duration);
+      rotation = startRot + totalDelta * easeOutQuart(t);
+      var idx = indexAtPointer(rotation);
+      if (idx !== lastIdx && now - lastTick > 30) { tick(); lastTick = now; }
+      lastIdx = idx;
+      draw();
+      if (t < 1) requestAnimationFrame(frame);
+      else { rotation %= TWO_PI; finish(remaining[winnerPos]); }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function finish(itemIndex) {
+    called.push(itemIndex);
+    writeCalled();
+    showResult(info.items[itemIndex]);
+    chime();
+    // Let the room see where the wheel stopped, then take the item off it.
+    setTimeout(function () {
+      spinning = false;
+      refreshRemaining();
+      renderHistory();
+      draw();
+    }, 1400);
+  }
+
+  // ---------- Buttons ----------
+  $('spin').addEventListener('click', spin);
+
+  $('reset').addEventListener('click', function () {
+    if (spinning) return;
+    if (called.length && !confirm('Put every item back on the wheel and clear the called list?')) return;
+    called = [];
+    clearCalled();
+    refreshRemaining();
+    showResult('', 'Press Spin to call the first item.');
+    renderHistory();
+    draw();
+  });
+
+  $('end').addEventListener('click', function () {
+    if (spinning) return;
+    if (!confirm('End this session? The student link will stop working and the list is deleted.')) return;
+    fetch('/bingo/api/t/' + token, { method: 'DELETE' }).finally(function () {
+      clearCalled();
+      location.href = '/bingo/';
+    });
+  });
+
+  $('copy').addEventListener('click', function () {
+    var url = location.origin + '/bingo/s/' + info.student;
+    var done = function () { $('copy').textContent = 'Copied'; setTimeout(function () { $('copy').textContent = 'Copy link'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () {});
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+
+  // ---------- Start ----------
+  function showGone() {
+    $('app').hidden = true;
+    $('gone').hidden = false;
+  }
+
+  if (!token) {
+    showGone();
+  } else {
+    fetch('/bingo/api/t/' + token).then(function (r) {
+      return r.json().then(function (j) { return { status: r.status, body: j }; });
+    }).then(function (res) {
+      if (res.status !== 200) { showGone(); return; }
+      info = res.body;
+      $('studentUrl').textContent = location.host + '/bingo/s/' + info.student;
+      $('until').textContent = 'This session ends at ' + new Date(info.expires).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.';
+      called = readCalled().filter(function (v, i, a) { return Number.isInteger(v) && v >= 0 && v < info.items.length && a.indexOf(v) === i; });
+      refreshRemaining();
+      $('app').hidden = false;
+      renderHistory();
+      if (called.length) showResult(info.items[called[called.length - 1]]);
+      resizeCanvas();
+    }).catch(function () {
+      $('gone').hidden = false;
+      $('gone').querySelector('strong').textContent = 'Could not reach the server. Check your connection and reload.';
+    });
+  }
+</script>
+</body>
+</html>

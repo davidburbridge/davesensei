@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bingo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap">
+<style>
+  :root {
+    --surface: #fafbf6;
+    --tint: #edf4e3;
+    --hairline: #cbd5c0;
+    --ink: #1e2b1e;
+    --muted: #4f5e4f;
+    --leaf: #4e9a2a;
+    --accent: #3f7f21;
+    --accent-hover: #346b1b;
+    --accent-fg: #ffffff;
+    --danger: #a3262f;
+    --focus: rgba(78, 154, 42, 0.5);
+    --font: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', Meiryo, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--surface); }
+  body { margin: 0; background: var(--surface); color: var(--ink); font-family: var(--font); line-height: 1.4; -webkit-text-size-adjust: 100%; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 12px 40px; display: flex; flex-direction: column; gap: 14px; }
+  .title-block { display: flex; flex-direction: column; gap: 10px; }
+  .rule { width: 80px; height: 8px; background: var(--leaf); border-radius: 4px; }
+  .back { align-self: flex-start; padding: 6px 14px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 700; text-decoration: none; }
+  .back:hover { border-color: var(--leaf); }
+  h1 { margin: 0; font-weight: 700; font-size: 2rem; line-height: 1.2; }
+  .banner { margin: 0; padding: 12px 16px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-size: 1.4rem; font-weight: 700; text-align: center; }
+  .board { display: grid; gap: 6px; }
+  .cell {
+    appearance: none; font: inherit; color: var(--ink); background: var(--tint);
+    border: 2px solid var(--hairline); border-radius: 8px; padding: 4px; min-width: 0;
+    aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; text-align: center;
+    font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; hyphens: auto; cursor: pointer;
+    touch-action: manipulation; position: relative;
+  }
+  .g3 .cell { font-size: clamp(15px, 5vw, 26px); }
+  .g4 .cell { font-size: clamp(12px, 3.6vw, 20px); }
+  .g5 .cell { font-size: clamp(10px, 2.9vw, 17px); }
+  .cell:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  .cell[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  .cell[aria-pressed="true"]::after { content: ""; position: absolute; inset: 6px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.55); pointer-events: none; }
+  .cell.free { cursor: default; }
+  .cell.line { box-shadow: 0 0 0 3px #e0902b; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button.ghost {
+    padding: 10px 16px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface);
+    color: var(--ink); font: inherit; font-weight: 700; cursor: pointer;
+  }
+  button.ghost:hover { border-color: var(--leaf); }
+  button.ghost:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  .msg { margin: 0; color: var(--danger); font-weight: 700; }
+  .note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .panel { padding: 16px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="title-block">
+    <a class="back" href="/">← Menu</a>
+    <div class="rule"></div>
+    <h1>Bingo</h1>
+  </div>
+
+  <p class="banner" id="banner" hidden>BINGO! Tell your teacher.</p>
+  <div class="board" id="board" aria-label="Your bingo board"></div>
+  <p class="msg" id="msg" role="alert"></p>
+
+  <div class="panel" id="gone" hidden>
+    <strong>This bingo session has ended or the link is wrong.</strong>
+    <p class="note">Ask your teacher for the link again.</p>
+  </div>
+
+  <div class="row" id="controls" hidden>
+    <button type="button" class="ghost" id="clearMarks">Clear my marks</button>
+    <button type="button" class="ghost" id="newBoard">New board</button>
+  </div>
+  <p class="note" id="until"></p>
+  <p class="note">Tap a square to cross it off. Your board is saved in this browser until the session ends.</p>
+</main>
+
+<script>
+  var m = location.pathname.match(/\/bingo\/s\/([a-z2-9]{8})/);
+  var sid = m ? m[1] : null;
+  var COOKIE = 'bingo_' + sid;
+  var COOKIE_PATH = '/bingo/s/' + sid;
+
+  var boardEl = document.getElementById('board');
+  var msgEl = document.getElementById('msg');
+  var goneEl = document.getElementById('gone');
+  var controlsEl = document.getElementById('controls');
+  var bannerEl = document.getElementById('banner');
+  var untilEl = document.getElementById('until');
+
+  var info = null;   // { items, grid, free, expires }
+  var board = null;  // { g, c: cells, x: crossed positions }
+
+  // ---------- Cookie ----------
+  function readCookie() {
+    try {
+      var parts = document.cookie.split('; ');
+      for (var i = 0; i < parts.length; i++) {
+        if (parts[i].indexOf(COOKIE + '=') === 0) return JSON.parse(decodeURIComponent(parts[i].slice(COOKIE.length + 1)));
+      }
+    } catch (e) { /* damaged cookie: ignore */ }
+    return null;
+  }
+  function writeCookie() {
+    var s = COOKIE + '=' + encodeURIComponent(JSON.stringify(board)) + '; path=' + COOKIE_PATH +
+      '; expires=' + new Date(info.expires).toUTCString() + '; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+    document.cookie = s;
+  }
+  function clearCookie() {
+    document.cookie = COOKIE + '=; path=' + COOKIE_PATH + '; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+  }
+
+  function validBoard(b) {
+    if (!b || b.g !== info.grid || !Array.isArray(b.c) || b.c.length !== b.g * b.g || !Array.isArray(b.x)) return false;
+    var centre = (b.g * b.g - 1) / 2, seen = {};
+    for (var i = 0; i < b.c.length; i++) {
+      var v = b.c[i];
+      if (v === -1) { if (!info.free || i !== centre) return false; continue; }
+      if (typeof v !== 'number' || v < 0 || v >= info.items.length || seen[v]) return false;
+      seen[v] = 1;
+    }
+    if (info.free && b.c[centre] !== -1) return false;
+    return b.x.every(function (p) { return typeof p === 'number' && p >= 0 && p < b.c.length && b.c[p] !== -1; });
+  }
+
+  // ---------- Rendering ----------
+  function lineCells() {
+    var g = board.g, on = {};
+    board.x.forEach(function (p) { on[p] = 1; });
+    board.c.forEach(function (v, p) { if (v === -1) on[p] = 1; });
+    var lines = [], i, j, a;
+    for (i = 0; i < g; i++) {
+      a = []; for (j = 0; j < g; j++) a.push(i * g + j); lines.push(a);
+      a = []; for (j = 0; j < g; j++) a.push(j * g + i); lines.push(a);
+    }
+    a = []; for (i = 0; i < g; i++) a.push(i * g + i); lines.push(a);
+    a = []; for (i = 0; i < g; i++) a.push(i * g + (g - 1 - i)); lines.push(a);
+    var hit = {}, any = false;
+    lines.forEach(function (l) {
+      if (l.every(function (p) { return on[p]; })) { any = true; l.forEach(function (p) { hit[p] = 1; }); }
+    });
+    return { hit: hit, any: any };
+  }
+
+  function render() {
+    var g = board.g;
+    boardEl.className = 'board g' + g;
+    boardEl.style.gridTemplateColumns = 'repeat(' + g + ', minmax(0, 1fr))';
+    boardEl.textContent = '';
+    var lc = lineCells();
+    board.c.forEach(function (v, p) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cell' + (v === -1 ? ' free' : '') + (lc.hit[p] ? ' line' : '');
+      if (v === -1) {
+        b.textContent = 'FREE';
+        b.setAttribute('aria-pressed', 'true');
+        b.disabled = true;
+      } else {
+        b.textContent = info.items[v];
+        b.setAttribute('aria-pressed', board.x.indexOf(p) !== -1 ? 'true' : 'false');
+        b.addEventListener('click', function () { toggle(p); });
+      }
+      boardEl.appendChild(b);
+    });
+    bannerEl.hidden = !lc.any;
+    controlsEl.hidden = false;
+  }
+
+  function toggle(p) {
+    var i = board.x.indexOf(p);
+    if (i === -1) board.x.push(p); else board.x.splice(i, 1);
+    writeCookie();
+    render();
+  }
+
+  // ---------- Server ----------
+  function api(method, url) {
+    return fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: method === 'POST' ? '{}' : undefined })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); });
+  }
+
+  function showGone() {
+    clearCookie();
+    boardEl.textContent = '';
+    controlsEl.hidden = true;
+    bannerEl.hidden = true;
+    msgEl.textContent = '';
+    untilEl.textContent = '';
+    goneEl.hidden = false;
+  }
+
+  function fetchBoard() {
+    msgEl.textContent = '';
+    return api('POST', '/bingo/api/s/' + sid + '/board').then(function (res) {
+      if (res.status === 200) {
+        board = { v: 1, g: res.body.grid, c: res.body.cells, x: [] };
+        writeCookie();
+        render();
+        return true;
+      }
+      if (res.status === 404) { showGone(); return false; }
+      msgEl.textContent = res.body.error || 'Could not make a board. Try again in a moment.';
+      controlsEl.hidden = false;
+      return false;
+    }).catch(function () {
+      msgEl.textContent = 'Could not reach the server. Check your connection and try again.';
+      controlsEl.hidden = false;
+      return false;
+    });
+  }
+
+  document.getElementById('clearMarks').addEventListener('click', function () {
+    if (!board) return;
+    board.x = [];
+    writeCookie();
+    render();
+  });
+  document.getElementById('newBoard').addEventListener('click', function () {
+    if (board && board.x.length && !confirm('Get a new board? Your marks on this board will be lost.')) return;
+    fetchBoard();
+  });
+
+  function start() {
+    if (!sid) { showGone(); return; }
+    api('GET', '/bingo/api/s/' + sid).then(function (res) {
+      if (res.status === 404) { showGone(); return; }
+      if (res.status !== 200) { msgEl.textContent = res.body.error || 'Please wait a moment and reload this page.'; return; }
+      info = res.body;
+      untilEl.textContent = 'This session ends at ' + new Date(info.expires).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.';
+      var saved = readCookie();
+      if (validBoard(saved)) { board = saved; render(); } else { fetchBoard(); }
+    }).catch(function () {
+      msgEl.textContent = 'Could not reach the server. Check your connection and reload.';
+    });
+  }
+  start();
+</script>
+</body>
+</html>
