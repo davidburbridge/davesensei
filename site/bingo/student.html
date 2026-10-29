@@ -34,6 +34,10 @@
   .back:hover { border-color: var(--leaf); }
   h1 { margin: 0; font-weight: 700; font-size: 2rem; line-height: 1.2; }
   .banner { margin: 0; padding: 12px 16px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-size: 1.4rem; font-weight: 700; text-align: center; }
+  .win { display: flex; flex-direction: column; gap: 8px; }
+  .winlabel { margin: 0; font-weight: 700; }
+  .winlines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .winlines li { padding: 8px 12px; background: #fff; border: 2px solid #e0902b; border-radius: 8px; font-size: 1.15rem; font-weight: 700; overflow-wrap: anywhere; }
   .board { display: grid; gap: 6px; }
   .cell {
     appearance: none; font: inherit; color: var(--ink); background: var(--tint);
@@ -70,7 +74,11 @@
     <h1>Bingo</h1>
   </div>
 
-  <p class="banner" id="banner" hidden>BINGO! Tell your teacher.</p>
+  <div class="win" id="win" hidden>
+    <p class="banner">BINGO! Tell your teacher.</p>
+    <p class="winlabel">Read out your line:</p>
+    <ul class="winlines" id="winlines"></ul>
+  </div>
   <div class="board" id="board" aria-label="Your bingo board"></div>
   <p class="msg" id="msg" role="alert"></p>
 
@@ -97,7 +105,7 @@
   var msgEl = document.getElementById('msg');
   var goneEl = document.getElementById('gone');
   var controlsEl = document.getElementById('controls');
-  var bannerEl = document.getElementById('banner');
+  var winEl = document.getElementById('win');
   var untilEl = document.getElementById('until');
 
   var info = null;   // { items, grid, free, expires }
@@ -147,11 +155,22 @@
     }
     a = []; for (i = 0; i < g; i++) a.push(i * g + i); lines.push(a);
     a = []; for (i = 0; i < g; i++) a.push(i * g + (g - 1 - i)); lines.push(a);
-    var hit = {}, any = false;
+    var hit = {}, done = [];
     lines.forEach(function (l) {
-      if (l.every(function (p) { return on[p]; })) { any = true; l.forEach(function (p) { hit[p] = 1; }); }
+      if (l.every(function (p) { return on[p]; })) { done.push(l); l.forEach(function (p) { hit[p] = 1; }); }
     });
-    return { hit: hit, any: any };
+    return { hit: hit, any: done.length > 0, lines: done };
+  }
+
+  // The teacher checks a claimed bingo by hearing these items and comparing them with the called list.
+  function renderWin(lines) {
+    var ul = document.getElementById('winlines');
+    ul.textContent = '';
+    lines.forEach(function (l) {
+      var li = document.createElement('li');
+      li.textContent = l.map(function (p) { return board.c[p] === -1 ? 'FREE' : info.items[board.c[p]]; }).join('  ·  ');
+      ul.appendChild(li);
+    });
   }
 
   function render() {
@@ -175,7 +194,8 @@
       }
       boardEl.appendChild(b);
     });
-    bannerEl.hidden = !lc.any;
+    winEl.hidden = !lc.any;
+    if (lc.any) renderWin(lc.lines);
     controlsEl.hidden = false;
   }
 
@@ -196,7 +216,7 @@
     clearCookie();
     boardEl.textContent = '';
     controlsEl.hidden = true;
-    bannerEl.hidden = true;
+    winEl.hidden = true;
     msgEl.textContent = '';
     untilEl.textContent = '';
     goneEl.hidden = false;

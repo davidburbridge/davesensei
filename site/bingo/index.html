@@ -55,6 +55,7 @@
   button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .msg { margin: 0; min-height: 1.5em; color: var(--danger); font-weight: 700; }
   .note { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .tip { margin: 0; padding: 10px 14px; border-left: 4px solid var(--leaf); background: var(--tint); border-radius: 0 8px 8px 0; }
   details { border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 14px; }
   summary { cursor: pointer; font-weight: 700; }
   code { background: var(--tint); padding: 1px 6px; border-radius: 4px; }
@@ -99,6 +100,7 @@ I'd like a coffee</pre>
     </label>
   </div>
   <p class="note" id="gridNote"></p>
+  <p class="tip" id="tip" hidden></p>
 
   <button class="primary" id="create" type="button" disabled>Create session</button>
   <p class="msg" id="msg" role="alert"></p>
@@ -182,8 +184,23 @@ I'd like a coffee</pre>
     countEl.className = 'count' + (a.problem || (a.items.length && a.items.length < MIN_ITEMS) ? ' bad' : '');
     createBtn.disabled = !ok;
     var g = Number(gridEl.value);
-    var auto = a.items.length >= 25 ? 5 : a.items.length >= 16 ? 4 : 3;
+    var auto = freeEl.checked
+      ? (a.items.length >= 24 ? 5 : a.items.length >= 16 ? 4 : 3)
+      : (a.items.length >= 25 ? 5 : a.items.length >= 16 ? 4 : 3);
     var shown = g || auto;
+
+    // Boards only differ when the list is clearly longer than the board.
+    var squares = need(shown, freeEl.checked);
+    var tipEl = document.getElementById('tip');
+    if (ok && a.items.length < Math.ceil(squares * 1.5)) {
+      tipEl.hidden = false;
+      tipEl.textContent = (a.items.length === squares
+        ? 'Every board will have the same ' + squares + ' items, just in a different order, so many students will finish at about the same time.'
+        : 'With ' + a.items.length + ' items for ' + squares + ' squares, boards will be quite similar.') +
+        ' About ' + Math.ceil(squares * 1.5) + ' to ' + Math.min(100, squares * 2) + ' items gives more variety. You can still create it as it is.';
+    } else {
+      tipEl.hidden = true;
+    }
     gridNote.textContent = (freeEl.checked && shown % 2 === 0)
       ? 'A free space needs a 3×3 or 5×5 board, so it will be left out on ' + shown + '×' + shown + '.'
       : (g ? '' : 'Automatic: ' + auto + '×' + auto + ' board' + (a.items.length < 9 ? '' : ' for ' + a.items.length + ' items') + '.');

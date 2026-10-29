@@ -33,9 +33,15 @@
   .back { align-self: flex-start; padding: 6px 14px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 700; text-decoration: none; }
   .back:hover { border-color: var(--leaf); }
   h1 { margin: 0; font-weight: 700; font-size: 2rem; line-height: 1.2; }
-  .join { padding: 16px 20px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+  .join { padding: 16px 20px; background: var(--tint); border: 1px solid var(--hairline); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+  .join .text { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 280px; }
   .join .label { font-weight: 700; color: var(--muted); }
   .join .url { font-size: clamp(1.3rem, 4vw, 2.2rem); font-weight: 700; overflow-wrap: anywhere; user-select: all; }
+  .qr { display: block; width: 180px; height: 180px; background: #fff; border-radius: 8px; cursor: zoom-in; image-rendering: pixelated; }
+  .qr-big { position: fixed; inset: 0; z-index: 10; background: rgba(250, 251, 246, 0.97); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; cursor: zoom-out; }
+  .qr-big canvas { width: min(80vh, 90vw); height: min(80vh, 90vw); image-rendering: pixelated; }
+  .qr-big p { margin: 0; font-size: clamp(1.2rem, 3vw, 2rem); font-weight: 700; }
+  .sortbtn { margin-left: 10px; padding: 2px 10px; font-size: 0.9rem; }
   .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
   @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
   .wheelbox { position: relative; width: 100%; max-width: 620px; margin: 0 auto; }
@@ -75,15 +81,25 @@
   </div>
 
   <div class="panel" id="gone" hidden>
-    <strong>This session has ended or the link is wrong.</strong>
-    <p class="note"><a href="/bingo/">Start a new bingo session</a></p>
+    <strong>This session has ended, or this browser has no session open.</strong>
+    <p class="note">Open your teacher link again, or <a href="/bingo/">start a new bingo session</a>.</p>
   </div>
 
   <div id="app" hidden>
     <div class="join">
-      <span class="label">Students open:</span>
-      <span class="url" id="studentUrl"></span>
-      <button type="button" class="ghost" id="copy">Copy link</button>
+      <canvas class="qr" id="qr" title="Click to make the QR code bigger" aria-label="QR code for the student link"></canvas>
+      <div class="text">
+        <span class="label">Students scan the code or open:</span>
+        <span class="url" id="studentUrl"></span>
+        <div class="row">
+          <button type="button" class="ghost" id="copy">Copy student link</button>
+          <button type="button" class="ghost" id="qrBigBtn">Big QR code</button>
+        </div>
+      </div>
+    </div>
+    <div class="qr-big" id="qrBig" hidden>
+      <canvas id="qrBigCanvas" aria-label="Large QR code for the student link"></canvas>
+      <p id="qrBigUrl"></p>
     </div>
 
     <div class="layout" style="margin-top:18px">
@@ -100,7 +116,7 @@
         </div>
 
         <div>
-          <h2>Called <span class="count" id="calledCount"></span></h2>
+          <h2>Called <span class="count" id="calledCount"></span><button type="button" class="ghost sortbtn" id="sort" aria-pressed="false">A–Z</button></h2>
           <ol class="history" id="history"></ol>
         </div>
 
@@ -109,17 +125,50 @@
           <button type="button" class="ghost danger" id="end">End session</button>
         </div>
         <p class="note" id="until"></p>
-        <p class="note">Keep this page's address private: it controls the session. Called items are remembered in this browser until the session ends.</p>
+        <p class="note">The teacher link is hidden from the address bar so it is safe to project. To control this session from another device, copy the teacher link (keep it private: it controls the session).</p>
+        <div class="row"><button type="button" class="ghost" id="copyTeacher">Copy teacher link</button></div>
       </div>
     </div>
   </div>
 </main>
 
 <script>
-  var m = location.pathname.match(/\/bingo\/t\/([A-Za-z0-9_-]{24})/);
-  var token = m ? m[1] : null;
+  // The teacher link (/bingo/t/<token>) is a secret. Move it out of the address bar straight away, so a
+  // projected page never shows it, and keep the token in a cookie scoped to /bingo/teacher so reloads still work.
+  var PAGE_PATH = '/bingo/teacher';
+  var TOKEN_COOKIE = 'bingo_teacher';
   var COOKIE = 'bingo_called';
-  var COOKIE_PATH = '/bingo/t/' + token;
+  var SECURE = location.protocol === 'https:' ? '; Secure' : '';
+
+  function getCookie(name) {
+    var parts = document.cookie.split('; ');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].indexOf(name + '=') === 0) {
+        try { return decodeURIComponent(parts[i].slice(name.length + 1)); } catch (e) { return null; }
+      }
+    }
+    return null;
+  }
+  function setCookie(name, value, expires) {
+    document.cookie = name + '=' + encodeURIComponent(value) + '; path=' + PAGE_PATH +
+      (expires ? '; expires=' + new Date(expires).toUTCString() : '') + '; SameSite=Strict' + SECURE;
+  }
+  function deleteCookie(name) {
+    document.cookie = name + '=; path=' + PAGE_PATH + '; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict' + SECURE;
+  }
+
+  // A real reload (not history.replaceState): browsers match cookies against the address the page was loaded
+  // from, so only a fresh load of /bingo/teacher can read the saved called list.
+  var m = location.pathname.match(/\/bingo\/t\/([A-Za-z0-9_-]{24})/);
+  var redirecting = !!m;
+  var token = null;
+  if (redirecting) {
+    setCookie(TOKEN_COOKIE, m[1]);
+    location.replace(PAGE_PATH);
+  } else {
+    token = getCookie(TOKEN_COOKIE);
+    if (token && !/^[A-Za-z0-9_-]{24}$/.test(token)) token = null;
+  }
 
   var TWO_PI = Math.PI * 2;
   var POINTER_ANGLE = -Math.PI / 2;
@@ -138,25 +187,16 @@
   var audioCtx = null;
 
   // ---------- Cookie ----------
+  // Called items: { t: token, c: [item indexes] }, so a list from an older session is never reused.
   function readCalled() {
     try {
-      var parts = document.cookie.split('; ');
-      for (var i = 0; i < parts.length; i++) {
-        if (parts[i].indexOf(COOKIE + '=') === 0) {
-          var v = JSON.parse(decodeURIComponent(parts[i].slice(COOKIE.length + 1)));
-          if (Array.isArray(v)) return v;
-        }
-      }
+      var v = JSON.parse(getCookie(COOKIE) || 'null');
+      if (v && v.t === token && Array.isArray(v.c)) return v.c;
     } catch (e) { /* ignore */ }
     return [];
   }
-  function writeCalled() {
-    document.cookie = COOKIE + '=' + encodeURIComponent(JSON.stringify(called)) + '; path=' + COOKIE_PATH +
-      '; expires=' + new Date(info.expires).toUTCString() + '; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
-  }
-  function clearCalled() {
-    document.cookie = COOKIE + '=; path=' + COOKIE_PATH + '; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-  }
+  function writeCalled() { setCookie(COOKIE, JSON.stringify({ t: token, c: called }), info.expires); }
+  function clearCalled() { deleteCookie(COOKIE); }
 
   // ---------- State ----------
   function refreshRemaining() {
@@ -169,15 +209,22 @@
   function renderHistory() {
     var ol = $('history');
     ol.textContent = '';
-    for (var k = called.length - 1; k >= 0; k--) {
+    // Newest first by default; A–Z makes it quick to check a student's winning line.
+    var order = called.map(function (item, k) { return { item: item, k: k }; });
+    if ($('sort').getAttribute('aria-pressed') === 'true') {
+      order.sort(function (a, b) { return info.items[a.item].localeCompare(info.items[b.item], undefined, { sensitivity: 'base', numeric: true }); });
+    } else {
+      order.reverse();
+    }
+    order.forEach(function (o) {
       var li = document.createElement('li');
       var n = document.createElement('span');
       n.className = 'n';
-      n.textContent = (k + 1) + '.';
+      n.textContent = (o.k + 1) + '.';
       li.appendChild(n);
-      li.appendChild(document.createTextNode(info.items[called[k]]));
+      li.appendChild(document.createTextNode(info.items[o.item]));
       ol.appendChild(li);
-    }
+    });
     $('calledCount').textContent = called.length + ' of ' + info.items.length;
     $('spin').disabled = spinning || remaining.length === 0;
     if (!remaining.length && !spinning) {
@@ -364,15 +411,244 @@
     if (!confirm('End this session? The student link will stop working and the list is deleted.')) return;
     fetch('/bingo/api/t/' + token, { method: 'DELETE' }).finally(function () {
       clearCalled();
+      deleteCookie(TOKEN_COOKIE);
       location.href = '/bingo/';
     });
   });
 
-  $('copy').addEventListener('click', function () {
-    var url = location.origin + '/bingo/s/' + info.student;
-    var done = function () { $('copy').textContent = 'Copied'; setTimeout(function () { $('copy').textContent = 'Copy link'; }, 1500); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function () {});
+  function copyText(btn, text) {
+    var label = btn.textContent;
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = label; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () {});
+  }
+  $('copy').addEventListener('click', function () { copyText($('copy'), location.origin + '/bingo/s/' + info.student); });
+  $('copyTeacher').addEventListener('click', function () { copyText($('copyTeacher'), location.origin + '/bingo/t/' + token); });
+
+  $('sort').addEventListener('click', function () {
+    var on = $('sort').getAttribute('aria-pressed') !== 'true';
+    $('sort').setAttribute('aria-pressed', String(on));
+    renderHistory();
   });
+
+  function openBigQr() {
+    $('qrBig').hidden = false;
+    var side = Math.min(window.innerHeight * 0.8, window.innerWidth * 0.9);
+    drawQr($('qrBigCanvas'), location.origin + '/bingo/s/' + info.student, Math.round(side * (window.devicePixelRatio || 1)));
+  }
+  $('qr').addEventListener('click', openBigQr);
+  $('qrBigBtn').addEventListener('click', openBigQr);
+  $('qrBig').addEventListener('click', function () { $('qrBig').hidden = true; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('qrBig').hidden = true; });
+
+  // ---------- QR code (byte mode, error correction level M, versions 1-10; enough for a ~200-character link) ----------
+  // Follows the QR Code spec (ISO/IEC 18004) as laid out in Project Nayuki's reference generator (MIT licence).
+  var QR_ECC_PER_BLOCK = [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26];
+  var QR_BLOCKS = [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5];
+
+  function qrRawModules(ver) {
+    var r = (16 * ver + 128) * ver + 64;
+    if (ver >= 2) {
+      var na = Math.floor(ver / 7) + 2;
+      r -= (25 * na - 10) * na - 55;
+      if (ver >= 7) r -= 36;
+    }
+    return r;
+  }
+  function qrDataCodewords(ver) { return Math.floor(qrRawModules(ver) / 8) - QR_ECC_PER_BLOCK[ver] * QR_BLOCKS[ver]; }
+
+  function rsMul(x, y) {
+    var z = 0;
+    for (var i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11d); z ^= ((y >>> i) & 1) * x; }
+    return z;
+  }
+  function rsDivisor(degree) {
+    var res = [];
+    for (var i = 0; i < degree - 1; i++) res.push(0);
+    res.push(1);
+    var root = 1;
+    for (i = 0; i < degree; i++) {
+      for (var j = 0; j < res.length; j++) {
+        res[j] = rsMul(res[j], root);
+        if (j + 1 < res.length) res[j] ^= res[j + 1];
+      }
+      root = rsMul(root, 0x02);
+    }
+    return res;
+  }
+  function rsRemainder(data, divisor) {
+    var res = divisor.map(function () { return 0; });
+    data.forEach(function (b) {
+      var factor = b ^ res.shift();
+      res.push(0);
+      divisor.forEach(function (coef, i) { res[i] ^= rsMul(coef, factor); });
+    });
+    return res;
+  }
+
+  function qrEncode(text) {
+    var bytes = Array.from(new TextEncoder().encode(text));
+    var ver;
+    for (ver = 1; ver <= 10; ver++) {
+      var ccBits = ver < 10 ? 8 : 16;
+      if (4 + ccBits + bytes.length * 8 <= qrDataCodewords(ver) * 8) break;
+    }
+    if (ver > 10) return null;
+
+    // Data bits: mode 0100 (byte), length, data, terminator, padding.
+    var bits = [];
+    var push = function (val, len) { for (var i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+    push(4, 4);
+    push(bytes.length, ver < 10 ? 8 : 16);
+    bytes.forEach(function (b) { push(b, 8); });
+    var capacity = qrDataCodewords(ver) * 8;
+    push(0, Math.min(4, capacity - bits.length));
+    push(0, (8 - bits.length % 8) % 8);
+    for (var pad = 0xec; bits.length < capacity; pad ^= 0xec ^ 0x11) push(pad, 8);
+    var data = [];
+    for (var i = 0; i < bits.length; i += 8) {
+      var v = 0;
+      for (var j = 0; j < 8; j++) v = (v << 1) | bits[i + j];
+      data.push(v);
+    }
+
+    // Error correction and interleaving.
+    var numBlocks = QR_BLOCKS[ver], eccLen = QR_ECC_PER_BLOCK[ver];
+    var rawCodewords = Math.floor(qrRawModules(ver) / 8);
+    var numShort = numBlocks - rawCodewords % numBlocks;
+    var shortLen = Math.floor(rawCodewords / numBlocks);
+    var div = rsDivisor(eccLen), blocks = [];
+    for (i = 0, j = 0; i < numBlocks; i++) {
+      var dat = data.slice(j, j + shortLen - eccLen + (i < numShort ? 0 : 1));
+      j += dat.length;
+      var ecc = rsRemainder(dat, div);
+      if (i < numShort) dat.push(0);
+      blocks.push(dat.concat(ecc));
+    }
+    var codewords = [];
+    for (i = 0; i < blocks[0].length; i++) {
+      for (j = 0; j < blocks.length; j++) {
+        if (i !== shortLen - eccLen || j >= numShort) codewords.push(blocks[j][i]);
+      }
+    }
+
+    // Module grid.
+    var size = ver * 4 + 17, mod = [], fn = [];
+    for (i = 0; i < size; i++) { mod.push(new Array(size).fill(false)); fn.push(new Array(size).fill(false)); }
+    var setFn = function (x, y, dark) { mod[y][x] = dark; fn[y][x] = true; };
+    var bit = function (x, k) { return ((x >>> k) & 1) !== 0; };
+
+    for (i = 0; i < size; i++) { setFn(6, i, i % 2 === 0); setFn(i, 6, i % 2 === 0); }
+    [[3, 3], [size - 4, 3], [3, size - 4]].forEach(function (c) {
+      for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) {
+        var d = Math.max(Math.abs(dx), Math.abs(dy)), xx = c[0] + dx, yy = c[1] + dy;
+        if (xx >= 0 && xx < size && yy >= 0 && yy < size) setFn(xx, yy, d !== 2 && d !== 4);
+      }
+    });
+    if (ver > 1) {
+      var na = Math.floor(ver / 7) + 2;
+      var step = Math.floor((ver * 8 + na * 3 + 5) / (na * 4 - 4)) * 2;
+      var pos = [6];
+      for (var p = size - 7; pos.length < na; p -= step) pos.splice(1, 0, p);
+      for (i = 0; i < na; i++) for (j = 0; j < na; j++) {
+        if ((i === 0 && j === 0) || (i === 0 && j === na - 1) || (i === na - 1 && j === 0)) continue;
+        for (var ay = -2; ay <= 2; ay++) for (var ax = -2; ax <= 2; ax++) setFn(pos[i] + ax, pos[j] + ay, Math.max(Math.abs(ax), Math.abs(ay)) !== 1);
+      }
+    }
+    var drawFormat = function (mask) {
+      var d = (0 << 3) | mask; // level M = 0b00
+      var rem = d;
+      for (var k = 0; k < 10; k++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+      var b = ((d << 10) | rem) ^ 0x5412;
+      for (k = 0; k <= 5; k++) setFn(8, k, bit(b, k));
+      setFn(8, 7, bit(b, 6)); setFn(8, 8, bit(b, 7)); setFn(7, 8, bit(b, 8));
+      for (k = 9; k < 15; k++) setFn(14 - k, 8, bit(b, k));
+      for (k = 0; k < 8; k++) setFn(size - 1 - k, 8, bit(b, k));
+      for (k = 8; k < 15; k++) setFn(8, size - 15 + k, bit(b, k));
+      setFn(8, size - 8, true);
+    };
+    drawFormat(0);
+    if (ver >= 7) {
+      var rem = ver;
+      for (i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1f25);
+      var vb = (ver << 12) | rem;
+      for (i = 0; i < 18; i++) {
+        var a = size - 11 + i % 3, bb = Math.floor(i / 3);
+        setFn(a, bb, bit(vb, i)); setFn(bb, a, bit(vb, i));
+      }
+    }
+
+    // Codewords in the zigzag order.
+    var n = 0;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < size; vert++) {
+        for (j = 0; j < 2; j++) {
+          var x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+          if (!fn[y][x] && n < codewords.length * 8) { mod[y][x] = bit(codewords[n >>> 3], 7 - (n & 7)); n++; }
+        }
+      }
+    }
+
+    var maskFns = [
+      function (x, y) { return (x + y) % 2 === 0; },
+      function (x, y) { return y % 2 === 0; },
+      function (x, y) { return x % 3 === 0; },
+      function (x, y) { return (x + y) % 3 === 0; },
+      function (x, y) { return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; },
+      function (x, y) { return x * y % 2 + x * y % 3 === 0; },
+      function (x, y) { return (x * y % 2 + x * y % 3) % 2 === 0; },
+      function (x, y) { return ((x + y) % 2 + x * y % 3) % 2 === 0; }
+    ];
+    var applyMask = function (mk) {
+      for (var yy = 0; yy < size; yy++) for (var xx = 0; xx < size; xx++) {
+        if (!fn[yy][xx] && maskFns[mk](xx, yy)) mod[yy][xx] = !mod[yy][xx];
+      }
+    };
+    // Simplified penalty (runs, 2x2 blocks, dark balance): any mask is valid; this just avoids the worst-looking ones.
+    var penalty = function () {
+      var score = 0, dark = 0, yy, xx, run, k;
+      for (yy = 0; yy < size; yy++) {
+        for (k = 0; k < 2; k++) {
+          run = 1;
+          for (xx = 1; xx < size; xx++) {
+            var same = k === 0 ? mod[yy][xx] === mod[yy][xx - 1] : mod[xx][yy] === mod[xx - 1][yy];
+            if (same) { run++; if (run === 5) score += 3; else if (run > 5) score++; } else run = 1;
+          }
+        }
+      }
+      for (yy = 0; yy < size - 1; yy++) for (xx = 0; xx < size - 1; xx++) {
+        var c = mod[yy][xx];
+        if (c === mod[yy][xx + 1] && c === mod[yy + 1][xx] && c === mod[yy + 1][xx + 1]) score += 3;
+      }
+      for (yy = 0; yy < size; yy++) for (xx = 0; xx < size; xx++) if (mod[yy][xx]) dark++;
+      score += Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+      return score;
+    };
+    var best = 0, bestScore = Infinity;
+    for (var mk = 0; mk < 8; mk++) {
+      applyMask(mk); drawFormat(mk);
+      var s = penalty();
+      if (s < bestScore) { bestScore = s; best = mk; }
+      applyMask(mk);
+    }
+    applyMask(best); drawFormat(best);
+    return { size: size, modules: mod, version: ver, mask: best };
+  }
+
+  function drawQr(cv, text, px) {
+    var q = qrEncode(text);
+    if (!q) return;
+    var quiet = 4, total = q.size + quiet * 2;
+    var scale = Math.max(1, Math.floor(px / total));
+    cv.width = cv.height = total * scale;
+    var c = cv.getContext('2d');
+    c.fillStyle = '#ffffff';
+    c.fillRect(0, 0, cv.width, cv.height);
+    c.fillStyle = '#000000';
+    for (var y = 0; y < q.size; y++) for (var x = 0; x < q.size; x++) {
+      if (q.modules[y][x]) c.fillRect((x + quiet) * scale, (y + quiet) * scale, scale, scale);
+    }
+  }
 
   window.addEventListener('resize', resizeCanvas);
 
@@ -382,7 +658,9 @@
     $('gone').hidden = false;
   }
 
-  if (!token) {
+  if (redirecting) {
+    // the page reloads at /bingo/teacher
+  } else if (!token) {
     showGone();
   } else {
     fetch('/bingo/api/t/' + token).then(function (r) {
@@ -390,7 +668,10 @@
     }).then(function (res) {
       if (res.status !== 200) { showGone(); return; }
       info = res.body;
+      setCookie(TOKEN_COOKIE, token, info.expires);
       $('studentUrl').textContent = location.host + '/bingo/s/' + info.student;
+      $('qrBigUrl').textContent = location.host + '/bingo/s/' + info.student;
+      drawQr($('qr'), location.origin + '/bingo/s/' + info.student, 360);
       $('until').textContent = 'This session ends at ' + new Date(info.expires).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.';
       called = readCalled().filter(function (v, i, a) { return Number.isInteger(v) && v >= 0 && v < info.items.length && a.indexOf(v) === i; });
       refreshRemaining();
