@@ -15,3 +15,7 @@ Thumbs.db
 
 # Notes for Claude Code (server and deployment details); kept out of the public repo
 CLAUDE.md
+
+# Server config, deploy scripts and tests: kept on this computer only (see CLAUDE.md)
+server/
+dev/
