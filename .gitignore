@@ -12,3 +12,6 @@ students*/
 .DS_Store
 Thumbs.db
 *.tmp
+
+# Notes for Claude Code (server and deployment details); kept out of the public repo
+CLAUDE.md
