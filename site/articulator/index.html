@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="description" content="Animated cross section of the head showing how English consonants and vowels are made.">
+<title>English Sound Articulator</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Articulator">
+<meta name="theme-color" content="#fafbf6">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Gentium+Plus:wght@400;700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* Layout: tabs pick consonants or vowels; one head diagram is the stage for both, readout beside it; each tab's picker runs full width beneath. */
+/* Konoha site style: surface/tint/hairline/ink/muted/leaf. Light only (classroom projector). Diagram colours (skin, airflow blue, friction orange, pressure red) are meaning, not decoration, so they stay. */
+:root{
+  --bg:#fafbf6; --surface:#FFFFFF; --fg:#1e2b1e; --muted:#4f5e4f; --line:#cbd5c0;
+  --leaf:#4e9a2a; --accent:#3f7f21; --accent-bg:#edf4e3; --dot:#D0532B; --phase-bg:#FBEDE6; --phase-fg:#8A3517;
+  --ipa:"Gentium Plus","Charis SIL","Doulos SIL","Noto Serif",Georgia,serif;
+  --ui:'Noto Sans JP','Hiragino Sans','Yu Gothic',Meiryo,Arial,sans-serif;
+}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 48px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+header{display:flex;flex-direction:column;gap:12px}
+.back{align-self:flex-start;padding:6px 14px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:1rem;font-weight:700;text-decoration:none}
+.back:hover{border-color:var(--leaf)}
+.back:focus-visible{outline:3px solid var(--leaf);outline-offset:2px}
+.rule{width:80px;height:8px;background:var(--leaf);border-radius:4px}
+h1{font-weight:700;font-size:clamp(28px,3.4vw,40px);line-height:1.2;margin:0;text-wrap:balance}
+header p{margin:0;color:var(--muted);font-size:17px;max-width:62ch}
+.main{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+@media (min-width:920px){.main{grid-template-columns:minmax(0,1.55fr) minmax(0,1fr)}}
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 8px 4px;margin:0;min-width:0}
+.stage svg{display:block;width:100%;height:auto}
+.ts{font-family:var(--ui);font-size:12.5px;fill:var(--muted)}
+.leader{stroke:var(--muted);stroke-width:.6;stroke-dasharray:3 2;opacity:.65}
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.readout{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
+#ro-ipa{font-family:var(--ipa);font-size:52px;line-height:1}
+#ro-word{font-size:22px;font-weight:700}
+#ro-desc{flex-basis:100%;color:var(--muted);font-size:16px}
+.phase{min-height:48px;display:flex;align-items:flex-start}
+.phase span{background:var(--phase-bg);color:var(--phase-fg);border-radius:8px;padding:6px 10px;font-size:15px;line-height:1.35}
+.phase span:empty{display:none}
+.howto{color:var(--muted);font-size:15px;margin:0}
+h2.sec{font-size:26px;margin:0;font-weight:700}
+.sub{color:var(--muted);font-size:15px;margin:2px 0 0}
+.chartwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;-webkit-overflow-scrolling:touch}
+table.ipa{border-collapse:separate;border-spacing:0;width:100%;min-width:1030px}
+.ipa th{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:10px 6px;text-align:center;border-bottom:1px solid var(--line)}
+.ipa th[scope=row],.ipa thead td{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;padding-left:14px;width:92px;border-bottom:none;border-right:1px solid var(--line)}
+.ipa th[scope=row]{border-top:1px solid var(--line)}
+.ipa tbody tr:first-child th{border-top:none}
+.ipa td{border-right:1px solid var(--line);border-top:1px solid var(--line);padding:6px;vertical-align:middle}
+.ipa tbody td{border-top:1px solid var(--line)}
+.ipa tr>td:last-child{border-right:none}
+.cell{display:flex;justify-content:space-between;gap:4px}
+.cell .ph{width:50px}
+.cb{appearance:none;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:9px;
+  width:50px;min-height:54px;padding:4px 2px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+  line-height:1.1;cursor:pointer;touch-action:manipulation;transition:border-color .15s,background .15s}
+.cb:hover{border-color:var(--accent)}
+.cb:focus-visible,.pb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cb .i{font-family:var(--ipa);font-size:22px}
+.cb .w{font-size:11.5px;color:var(--muted)}
+.cb.on{border-color:var(--accent);background:var(--accent-bg)}
+.cb.on .w{color:var(--fg)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--muted);font-size:13px;margin-top:8px}
+.pairs{display:flex;flex-direction:column;gap:14px}
+.prow{display:flex;flex-wrap:wrap;gap:8px}
+.pb{appearance:none;font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer;min-height:48px;display:inline-flex;flex-direction:column;align-items:center;line-height:1.15}
+.pb .i{font-family:var(--ipa);font-size:20px}
+.pb .w{font-size:12px;color:var(--muted)}
+.pb.on{border-color:var(--accent);background:var(--accent-bg)}
+.twin{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+@media (min-width:700px){.twin{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card .hd{display:flex;align-items:baseline;gap:10px}
+.card .hd .i{font-family:var(--ipa);font-size:36px;line-height:1}
+.card .hd .w{font-size:19px;font-weight:700}
+.card svg{width:100%;height:auto;display:block;border-radius:10px}
+.card .vo{font-size:13px;color:var(--muted)}
+.vrow{display:flex;align-items:center;gap:10px}
+.card .vf{width:140px;height:auto;flex:none;border-radius:0}
+.vfs{font-size:13px;color:var(--fg)}
+.card p{margin:0;font-size:15px}
+.key{border-left:4px solid var(--dot);padding:6px 0 6px 12px;font-size:16px;margin:0;max-width:70ch}
+.note{color:var(--muted);font-size:14px;margin:0;max-width:75ch}
+@media (prefers-reduced-motion:reduce){.cb,.pb{transition:none}}
+@media (max-width:600px){.ts{font-size:16px}}
+@media (min-width:1080px){.scrollhint{display:none}}
+.tabs{display:inline-flex;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;align-self:flex-start}
+.tab{appearance:none;font:inherit;font-weight:700;font-size:16px;color:var(--muted);background:transparent;border:1px solid transparent;border-radius:9px;padding:8px 18px;min-height:44px;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--fg);background:var(--accent-bg);border-color:var(--accent)}
+.tab:focus-visible,.vb:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vchart{display:block;width:100%;max-width:300px;height:auto}
+.vgroups{display:flex;flex-direction:column;gap:14px}
+.vg h3{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.vrowb{display:flex;flex-wrap:wrap;gap:6px}
+.vb{appearance:none;font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:10px;min-width:62px;min-height:58px;padding:6px 10px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;cursor:pointer;touch-action:manipulation;transition:border-color .15s,background .15s}
+.vb:hover{border-color:var(--accent)}
+.vb .i{font-family:var(--ipa);font-size:21px}
+.vb .w{font-size:12.5px;color:var(--muted)}
+.vb.on{border-color:var(--accent);background:var(--accent-bg)}
+.vb.on .w{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <a class="back" href="../">← Menu</a>
+  <div class="rule"></div>
+  <h1>English Sound Articulator</h1>
+  <p>Tap a sound to watch it being made: where the tongue, lips and jaw go, how the air escapes, and whether the vocal folds vibrate.</p>
+</header>
+<div class="tabs" role="tablist" aria-label="Sound type">
+  <button type="button" class="tab" role="tab" id="tabbtn-cons" aria-controls="tab-cons" aria-selected="true">Consonants</button>
+  <button type="button" class="tab" role="tab" id="tabbtn-vow" aria-controls="tab-vow" aria-selected="false">Vowels</button>
+</div>
+
+<div class="main">
+<figure class="stage">
+<svg viewBox="0 0 680 545" role="img" aria-labelledby="svgt"><title id="svgt">Cross section of the head and vocal tract, animating the selected sound</title>
+<g id="mainScene" transform="translate(-20 80) scale(.75)"></g>
+<g id="labels"></g>
+<text class="ts" x="500" y="452">Vocal folds from above</text>
+<ellipse cx="574" cy="486" rx="64" ry="24" fill="none" stroke="var(--line)" stroke-width="1"/>
+<polygon id="fU" stroke="#993556" stroke-width="0.6" fill="#ED93B1"/>
+<polygon id="fL" stroke="#993556" stroke-width="0.6" fill="#ED93B1"/>
+<circle id="aU" r="5" fill="#EDE7DA" stroke="#888780" stroke-width="0.6"/>
+<circle id="aL" r="5" fill="#EDE7DA" stroke="#888780" stroke-width="0.6"/>
+<text class="ts" x="500" y="528" id="gstat"></text>
+</svg>
+</figure>
+<div class="side">
+  <div class="readout" aria-live="polite"><span id="ro-ipa"></span><span id="ro-word"></span><span id="ro-desc"></span></div>
+  <div class="phase" aria-live="polite"><span id="phase"></span></div>
+  <svg class="vchart" id="vchart" viewBox="452 42 208 165" role="img" aria-label="Vowel chart: where the tongue is highest, front to back and high to low" hidden>
+    <polygon points="500,70 640,70 640,190 540,190" fill="none" stroke="var(--line)" stroke-width="1"/>
+    <line x1="520" y1="130" x2="640" y2="130" stroke="var(--line)" stroke-width="0.6" stroke-dasharray="3 3"/>
+    <line x1="570" y1="70" x2="590" y2="190" stroke="var(--line)" stroke-width="0.6" stroke-dasharray="3 3"/>
+    <text class="ts" x="500" y="60">Front</text><text class="ts" x="640" y="60" text-anchor="end">Back</text>
+    <text class="ts" x="494" y="82" text-anchor="end">High</text><text class="ts" x="534" y="194" text-anchor="end">Low</text>
+    <path id="vtrail" fill="none" stroke="var(--dot)" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <circle id="vdot" r="6.5" fill="var(--dot)" cx="505" cy="70"/>
+  </svg>
+  <p class="howto">Blue dots show airflow. Orange marks show friction. A red glow shows air pressure building behind a closure.</p>
+</div>
+</div>
+
+<div id="tab-cons" role="tabpanel" aria-labelledby="tabbtn-cons" style="display:flex;flex-direction:column;gap:22px">
+<section>
+  <div class="chartwrap"><table class="ipa" id="chart"></table></div>
+  <div class="legend"><span class="scrollhint">Swipe the chart sideways to see every column.</span><span>In each cell: voiceless on the left, voiced on the right. English nasals and approximants are all voiced, so their left slot is empty.</span><span>/w/ uses the lips and the back of the tongue together (labial-velar).</span></div>
+</section>
+
+<section class="pairs">
+  <div>
+    <h2 class="sec">Tricky pairs</h2>
+    <p class="sub">Contrasts Japanese learners often find hardest, then three voicing pairs where only the vocal folds differ. Each pair plays side by side on a loop.</p>
+  </div>
+  <div class="prow" id="pairBtns"></div>
+  <div class="twin">
+    <div class="card" id="cardA"><div class="hd"><span class="i"></span><span class="w"></span></div>
+      <svg viewBox="70 30 380 270" role="img" aria-label="First sound of the pair"><g class="mini"></g></svg>
+      <span class="vo"></span><div class="vrow"><svg class="vf" viewBox="0 0 160 50" aria-hidden="true"><ellipse cx="78" cy="25" rx="66" ry="20" fill="none" stroke="var(--line)" stroke-width="1"/><polygon class="fu" fill="#ED93B1" stroke="#993556" stroke-width=".6"/><polygon class="fl" fill="#ED93B1" stroke="#993556" stroke-width=".6"/><circle class="au" r="4" cx="130" fill="#EDE7DA" stroke="#888780" stroke-width=".6"/><circle class="al" r="4" cx="130" fill="#EDE7DA" stroke="#888780" stroke-width=".6"/></svg><span class="vfs"></span></div><p class="txt"></p></div>
+    <div class="card" id="cardB"><div class="hd"><span class="i"></span><span class="w"></span></div>
+      <svg viewBox="70 30 380 270" role="img" aria-label="Second sound of the pair"><g class="mini"></g></svg>
+      <span class="vo"></span><div class="vrow"><svg class="vf" viewBox="0 0 160 50" aria-hidden="true"><ellipse cx="78" cy="25" rx="66" ry="20" fill="none" stroke="var(--line)" stroke-width="1"/><polygon class="fu" fill="#ED93B1" stroke="#993556" stroke-width=".6"/><polygon class="fl" fill="#ED93B1" stroke="#993556" stroke-width=".6"/><circle class="au" r="4" cx="130" fill="#EDE7DA" stroke="#888780" stroke-width=".6"/><circle class="al" r="4" cx="130" fill="#EDE7DA" stroke="#888780" stroke-width=".6"/></svg><span class="vfs"></span></div><p class="txt"></p></div>
+  </div>
+  <p class="key" id="pairKey"></p>
+</section>
+</div>
+<div id="tab-vow" role="tabpanel" aria-labelledby="tabbtn-vow" hidden>
+  <div class="vgroups" id="vbtns"></div>
+</div>
+<p class="note">Schematic, not to scale. Positions are approximate. The vocal folds are slowed to about 5 vibrations per second so you can see them; in speech they vibrate roughly 100–250 times per second.</p>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+let RM=false;try{RM=matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){}
+const TPL=`
+<path data-k="headfill" fill="#F6E1D7" stroke="none"/>
+<path d="M150,150 C130,149 116,142 118,130 C124,112 148,80 172,62 C220,45 300,55 360,85 C400,100 425,120 433,150 L433,205 L412,200 C405,172 385,152 350,150 C320,143 280,143 240,146 C205,148 185,160 175,178 Z" fill="#EAF1F6" stroke="#B4B2A9" stroke-width="0.8"/>
+<path d="M200,136 C230,124 320,124 350,132 C320,141 240,143 200,136 Z" fill="#E9B8AA" stroke="#B8796A" stroke-width="0.6"/>
+<path d="M225,116 C255,104 320,104 350,112 C320,121 260,123 225,116 Z" fill="#E9B8AA" stroke="#B8796A" stroke-width="0.6"/>
+<path d="M270,96 C290,86 325,86 348,94 C325,102 295,103 270,96 Z" fill="#E9B8AA" stroke="#B8796A" stroke-width="0.6"/>
+<path data-k="air" fill="#EAF1F6" stroke="none"/>
+<path d="M382,470 L384,400 L434,400 L434,470 Z" fill="#EAF1F6" stroke="none"/>
+<line data-k="sfold" x1="386" y1="445" x2="432" y2="445" stroke-linecap="round"/>
+<g fill="#EDE7DA" stroke="#B4B2A9" stroke-width="0.8">
+<rect x="452" y="180" width="38" height="40" rx="6"/><rect x="452" y="229" width="38" height="40" rx="6"/><rect x="452" y="278" width="38" height="40" rx="6"/><rect x="452" y="327" width="38" height="40" rx="6"/><rect x="452" y="376" width="38" height="40" rx="6"/><rect x="452" y="425" width="38" height="40" rx="6"/>
+</g>
+<path d="M436,150 C440,220 440,320 440,470" fill="none" stroke="#C98A7A" stroke-width="6" stroke-linecap="round"/>
+<path d="M178,188 C190,170 210,160 240,158 C280,155 320,155 350,162 L350,150 C320,143 280,143 240,146 C205,148 185,160 175,178 Z" fill="#EDE7DA" stroke="#888780" stroke-width="0.8"/>
+<path data-k="velum" fill="#E9A99B" stroke="#A35A4A" stroke-width="0.8"/>
+<polygon points="168,182 178,182 177,214 171,214" fill="#FFFFFF" stroke="#888780" stroke-width="0.8"/>
+<path data-k="jawbone" fill="#EDE7DA" stroke="#888780" stroke-width="0.8"/>
+<polygon data-k="lteeth" fill="#FFFFFF" stroke="#888780" stroke-width="0.8"/>
+<path data-k="tongue" fill="#E8838F" stroke="#A33A4A" stroke-width="1"/>
+<path data-k="epi" fill="#E9A99B" stroke="#A35A4A" stroke-width="0.8"/>
+<path data-k="ulip" fill="#D9827A" stroke="#993C3C" stroke-width="0.8"/>
+<path data-k="llip" fill="#D9827A" stroke="#993C3C" stroke-width="0.8"/>
+<circle data-k="glow" r="10" fill="#E24B4A" opacity="0"/>
+<path d="M152,152 C135,150 115,146 98,138 C86,134 84,124 92,115 C104,100 112,92 116,84 C126,66 140,52 150,30 C155,15 158,0 160,-10 C168,-40 220,-72 300,-72 C400,-72 500,-40 540,40 C560,100 550,180 525,230 C510,260 505,290 505,330 L505,470" fill="none" stroke="#B98A7A" stroke-width="2"/>
+<path data-k="neck" fill="none" stroke="#B98A7A" stroke-width="2" stroke-linejoin="round"/>
+<g data-k="parts"></g>
+<g data-k="hiss" stroke="#E0902B" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0">
+<polyline points="-14,-8 -10,-11 -6,-8 -2,-11"/><polyline points="-16,0 -12,-3 -8,0 -4,-3"/><polyline points="-14,8 -10,5 -6,8 -2,5"/></g>
+<path data-k="op" fill="none" stroke="none" d="M410,455 L420,330 C423,250 412,198 388,180 C365,170 330,164 300,162 C270,161 245,162 225,165 C205,169 192,180 184,196 C180,208 178,216 170,218 L150,214 L92,212"/>
+<path data-k="np" fill="none" stroke="none" d="M410,455 L420,330 C423,260 428,230 426,200 C424,170 418,150 405,125 C380,98 320,88 260,96 C200,104 150,118 125,138 C115,146 105,152 92,156"/>`;
+
+const HEAD="M152,152 C135,150 115,146 98,138 C86,134 84,124 92,115 C104,100 112,92 116,84 C126,66 140,52 150,30 C155,15 158,0 160,-10 C168,-40 220,-72 300,-72 C400,-72 500,-40 540,40 C560,100 550,180 525,230 C510,260 505,290 505,330 L505,470 L300,470 ";
+const VR=[350,150,385,146,415,152,434,162,434,182,426,188,418,188,414,181,395,176,372,170,350,162];
+const VL=[350,150,385,152,405,172,412,200,410,218,406,224,398,222,396,212,390,190,372,172,350,162];
+
+const NEUTRAL={jo:14,tx:186,ty:250,px:290,py:225,rx:388,bl:0,r:0,lipC:0,ld:0,vel:0,fl:0};
+const T=o=>({...NEUTRAL,...o});
+const TG={
+ bil:T({jo:6,lipC:1}), lab:T({jo:8,ld:1}), den:T({jo:12,tx:170,ty:216,px:270,py:215}),
+ alv:T({jo:6,tx:187,ty:181,px:265,py:210}), s:T({jo:4,tx:188,ty:188,px:262,py:205}),
+ sh:T({jo:6,tx:194,ty:188,bl:-6,px:248,py:180,r:.45}), pal:T({jo:6,tx:192,ty:176,px:245,py:174,r:.3}),
+ vel:T({jo:10,px:368,py:170,rx:400,fl:1}), velN:T({jo:10,px:374,py:179,rx:400,vel:1,fl:1}),
+ j:T({jo:8,tx:184,ty:246,px:255,py:168}), r:T({jo:10,tx:200,ty:192,bl:-14,px:300,py:205,rx:410,r:.45}),
+ l:T({jo:10,tx:187,ty:181,px:300,py:228,rx:400}), w:T({jo:8,r:1,px:362,py:184,rx:400,fl:.8})
+};
+TG.m={...TG.bil,vel:1}; TG.n={...TG.alv,vel:1};
+const PTS={bil:[150,212],lab:[167,213],den:[171,215],alv:[188,186],pal:[200,175],vel:[372,174],velN:[378,181],glo:[409,445]};
+
+const C=[
+ ['p','pin',0,'stop','bil','bil','bilabial','plosive'],['b','bin',1,'stop','bil','bil','bilabial','plosive'],
+ ['t','tin',0,'stop','alv','alv','alveolar','plosive'],['d','din',1,'stop','alv','alv','alveolar','plosive'],
+ ['k','cap',0,'stop','vel','vel','velar','plosive'],['g','gap',1,'stop','vel','vel','velar','plosive'],
+ ['tʃ','chin',0,'affr','pal','pal','postalveolar','affricate'],['dʒ','jam',1,'affr','pal','pal','postalveolar','affricate'],
+ ['f','fan',0,'fric','lab','lab','labiodental','fricative'],['v','van',1,'fric','lab','lab','labiodental','fricative'],
+ ['θ','thin',0,'fric','den','den','dental','fricative'],['ð','this',1,'fric','den','den','dental','fricative'],
+ ['s','sip',0,'fric','s','alv','alveolar','fricative'],['z','zip',1,'fric','s','alv','alveolar','fricative'],
+ ['ʃ','ship',0,'fric','sh','pal','postalveolar','fricative'],['ʒ','measure',1,'fric','sh','pal','postalveolar','fricative'],
+ ['h','hat',0,'h',null,'glo','glottal','fricative'],
+ ['m','map',1,'nas','m','bil','bilabial','nasal'],['n','nap',1,'nas','n','alv','alveolar','nasal'],['ŋ','sing',1,'nas','velN','velN','velar','nasal'],
+ ['w','wet',1,'appr','w',null,'labial-velar','approximant','Lips round and the back of the tongue rises toward the soft palate, without touching'],
+ ['ɹ','red',1,'appr','r',null,'alveolar','approximant','Tongue tip curls up toward the ridge without touching; lips round slightly'],
+ ['j','yes',1,'appr','j',null,'palatal','approximant','Front of the tongue rises close to the hard palate, without touching'],
+ ['l','leg',1,'appr','l',null,'alveolar','lateral approximant','Tip touches the ridge; air flows out around the sides of the tongue']
+].map(a=>({i:a[0],w:a[1],v:a[2],m:a[3],t:a[4],p:a[5],pl:a[6],mn:a[7],note:a[8]}));
+const BY={};C.forEach(c=>BY[c.i]=c);
+
+function Scene(g){
+ g.innerHTML=TPL;const k={};g.querySelectorAll('[data-k]').forEach(e=>k[e.dataset.k]=e);
+ this.k=k;this.cur={...NEUTRAL};this.air='none';this.hiss=null;this.glow=false;this.gp=[0,0];this.Lc=0;this.glot='v';this.tok=0;this.tid=0;
+ this.Lo=k.op.getTotalLength();this.Ln=k.np.getTotalLength();this.cache={};
+ this.parts=[];for(let i=0;i<18;i++){const c=document.createElementNS(NS,'circle');c.setAttribute('r','3');c.setAttribute('fill','#2F7FC1');c.setAttribute('opacity','0');k.parts.appendChild(c);this.parts.push(c);}
+ this.draw(this.cur);
+}
+Scene.prototype.lenAt=function(key){
+ if(this.cache[key]!=null)return this.cache[key];const pt=PTS[key];let best=0,bd=1e9;
+ for(let s=0;s<=this.Lo;s+=2){const p=this.k.op.getPointAtLength(s);const d=(p.x-pt[0])**2+(p.y-pt[1])**2;if(d<bd){bd=d;best=s;}}
+ return this.cache[key]=best;};
+Scene.prototype.draw=function(s){
+ const k=this.k,jo=s.jo,r=s.r,tx=s.tx,ty=s.ty,px=s.px,py=s.py,rx=s.rx,bl=s.bl;
+ const ry=Math.max(py+70,330);
+ const fl=s.fl,c1=`${tx+18+fl*45},${ty-6+bl+fl*8}`,c2=`${Math.max(px-60+fl*25,tx+28)},${py}`,c3=`${Math.min(px+45,rx+8)},${py}`,c4=`${rx},${py+35}`;
+ k.tongue.setAttribute('d',`M${tx},${ty} C${c1} ${c2} ${px},${py} C${c3} ${c4} ${rx},${ry} L${rx+2},400 L380,404 L330,374 C260,355 215,${315+jo*.5} 192,${258+jo} C${tx-4},${248+jo} ${tx-6},${ty+14} ${tx},${ty} Z`);
+ k.epi.setAttribute('d',`M${rx},402 C${rx-2},388 ${rx+4},372 ${rx+12},362 C${rx+16},376 ${rx+12},392 ${rx+8},402 Z`);
+ k.lteeth.setAttribute('points',`171,${222+jo} 177,${222+jo} 178,${250+jo} 172,${250+jo}`);
+ k.jawbone.setAttribute('d',`M168,${246+jo} C152,${258+jo} 140,${278+jo} 140,${296+jo} C140,${312+jo} 152,${318+jo} 168,${316+jo} C186,${314+jo} 196,${302+jo} 194,${284+jo} C192,${268+jo} 186,${254+jo} 180,${246+jo} Z`);
+ const v=VR.map((a,i)=>a+(VL[i]-a)*s.vel);
+ k.velum.setAttribute('d',`M${v[0]},${v[1]} C${v[2]},${v[3]} ${v[4]},${v[5]} ${v[6]},${v[7]} L${v[8]},${v[9]} C${v[10]},${v[11]} ${v[12]},${v[13]} ${v[14]},${v[15]} C${v[16]},${v[17]} ${v[18]},${v[19]} ${v[20]},${v[21]} Z`);
+ const rp=Math.max(r,0),lx=142-14*r,th=36-10*rp;let lt=210+jo*.85*(1-.35*rp)+4*rp;lt+=(202-lt)*s.lipC;lt+=(209-lt)*s.ld;
+ const llx=(lx+2)+(160-(lx+2))*s.ld,a=lt+th;
+ k.ulip.setAttribute('d',`M152,152 C146,165 ${lx+2},${182+4*rp} ${lx},${198+2*rp} C${lx+2},206 160,207 172,205 L176,182 Z`);
+ k.llip.setAttribute('d',`M173,${lt} C160,${lt-2} ${llx},${lt} ${llx},${lt+6} C${llx+2},${lt+th-6} 160,${lt+th-2} 176,${a} Z`);
+ k.air.setAttribute('d',`M${lx+4},203 L174,214 L178,188 C190,170 210,160 240,158 C280,155 320,155 350,162 L434,162 L434,400 L${rx+2},400 L${rx},${ry} C${c4} ${c3} ${px},${py} C${c2} ${c1} ${tx},${ty} C${tx-6},${ty+14} ${tx-4},${248+jo} 192,${258+jo} L174,${222+jo} L${llx+4},${lt+3} Z`);
+ const ang=388+jo*.15;
+ const fwd=`M176,${a} C164,${a+2} 156,${a+6} 156,${a+10} C150,${a+16} 128,${280+jo} 128,${296+jo} C128,${312+jo} 140,${326+jo} 160,${327+jo} L300,${ang} L294,418 C302,426 302,440 296,450 L300,470`;
+ const rev=`L296,450 C302,440 302,426 294,418 L300,${ang} L160,${327+jo} C140,${326+jo} 128,${312+jo} 128,${296+jo} C128,${280+jo} 150,${a+16} 156,${a+10} C156,${a+6} 164,${a+2} 176,${a}`;
+ k.headfill.setAttribute('d',HEAD+rev+' L172,166 Z');k.neck.setAttribute('d',fwd);
+};
+Scene.prototype.tween=function(to,ms){const id=++this.tid,from={...this.cur},t0=performance.now();
+ return new Promise(res=>{if(RM){this.cur={...to};this.draw(this.cur);res();return;}
+ const step=t=>{if(id!==this.tid){res();return;}let q=Math.min(1,(t-t0)/ms);q=q<.5?2*q*q:1-Math.pow(-2*q+2,2)/2;
+  const c={};for(const p in from)c[p]=from[p]+(to[p]-from[p])*q;this.cur=c;this.draw(c);
+  if(q<1)requestAnimationFrame(step);else res();};requestAnimationFrame(step);});};
+Scene.prototype.setHold=function(key){this.air='hold';this.Lc=this.lenAt(key);this.gp=PTS[key];};
+Scene.prototype.tick=function(t){
+ const ts=RM?0:t/1000,k=this.k,N=this.parts.length;
+ for(let i=0;i<N;i++){const ph=i/N,el=this.parts[i];let path=k.op,L=this.Lo,s=-1;
+  if(this.air==='flow')s=((ph+ts*.45)%1)*L;
+  else if(this.air==='hold')s=this.Lc*(.45+.55*((ph+ts*.3)%1))-6;
+  else if(this.air==='burst')s=this.Lc+((ph+ts*1.6)%1)*(L-this.Lc);
+  else if(this.air==='nasal'){path=k.np;L=this.Ln;s=((ph+ts*.45)%1)*L;}
+  if(s<0){el.setAttribute('opacity','0');continue;}
+  const p=path.getPointAtLength(s);el.setAttribute('cx',p.x);el.setAttribute('cy',p.y);
+  el.setAttribute('opacity',Math.max(0,Math.min(.9,s/30,(L-s)/25)).toFixed(2));}
+ if(this.hiss){const j=RM?0:Math.sin(t/37)*1.5;k.hiss.setAttribute('transform',`translate(${this.hiss[0]+j},${this.hiss[1]})`);
+  k.hiss.setAttribute('opacity',RM?.9:(.55+.45*Math.abs(Math.sin(t/53))).toFixed(2));}
+ else k.hiss.setAttribute('opacity','0');
+ if(this.glow){const e=Math.min(1,(t-this.glowT)/600);k.glow.setAttribute('cx',this.gp[0]+10);k.glow.setAttribute('cy',this.gp[1]);
+  k.glow.setAttribute('r',(6+10*e).toFixed(1));k.glow.setAttribute('opacity',(.15+.3*e).toFixed(2));}
+ else k.glow.setAttribute('opacity','0');
+ const sf=k.sfold;
+ if(this.glot==='c'){sf.setAttribute('stroke','#A32D2D');sf.setAttribute('stroke-width',6);sf.setAttribute('stroke-dasharray','');}
+ else if(this.glot==='v'){sf.setAttribute('stroke','#D85A30');sf.setAttribute('stroke-width',3);sf.setAttribute('stroke-dasharray','6 4');sf.setAttribute('stroke-dashoffset',RM?0:(t/20)%10);}
+ else{sf.setAttribute('stroke','#C98A7A');sf.setAttribute('stroke-width',3);sf.setAttribute('stroke-dasharray','12 22');sf.setAttribute('stroke-dashoffset',0);}
+};
+
+const STOP={};
+const wait=ms=>new Promise(r=>setTimeout(r,RM?Math.min(ms,400):ms));
+async function perform(sc,c,setPhase){
+ const my=sc.tok,go=async p=>{await p;if(sc.tok!==my)throw STOP;};
+ const tg=c.t?TG[c.t]:NEUTRAL;
+ sc.air='none';sc.hiss=null;sc.glow=false;sc.glot=c.v?'v':'o';setPhase('');
+ try{
+  await go(sc.tween(NEUTRAL,160));
+  switch(c.m){
+  case 'stop':
+   await go(sc.tween(tg,260));sc.setHold(c.p);sc.glow=true;sc.glowT=performance.now();
+   setPhase('Closure: the airway is blocked and air pressure builds behind it');await go(wait(750));
+   sc.glow=false;sc.air='burst';setPhase('Release: the closure opens with a small burst of air');sc.glot='v';
+   await go(sc.tween(NEUTRAL,240));await go(wait(250));sc.air='flow';await go(wait(450));sc.air='none';break;
+  case 'affr':
+   await go(sc.tween(tg,260));sc.setHold('pal');sc.glow=true;sc.glowT=performance.now();
+   setPhase('Closure: tongue blade presses just behind the ridge');await go(wait(650));
+   sc.glow=false;sc.air='flow';sc.hiss=PTS.pal;setPhase('Release into friction, like /'+(c.v?'ʒ':'ʃ')+'/, instead of straight into a vowel');
+   await go(sc.tween(TG.sh,420));await go(wait(800));sc.air='none';sc.hiss=null;break;
+  case 'fric':
+   await go(sc.tween(tg,300));sc.air='flow';sc.hiss=PTS[c.p];
+   setPhase('Narrow gap: the air becomes turbulent and makes friction noise');await go(wait(1600));break;
+  case 'h':
+   sc.glot='h';sc.air='flow';sc.hiss=PTS.glo;setPhase('Mouth open; friction comes from air rushing between the open vocal folds');await go(wait(1600));break;
+  case 'nas':
+   await go(sc.tween(tg,320));sc.air='nasal';setPhase('Mouth blocked and soft palate lowered: air flows out through the nose');await go(wait(1600));break;
+  case 'appr':
+   await go(sc.tween(tg,360));sc.air='flow';setPhase(c.note);await go(wait(1500));break;
+  }
+ }catch(e){if(e!==STOP)throw e;}
+}
+
+/* main scene */
+const main=new Scene(document.getElementById('mainScene'));
+const LB=[['Nasal cavity',[380,110]],['Hard palate',[290,150]],['Soft palate',[400,165]],['Alveolar ridge',[190,174]],['Upper teeth',[174,205]],['Lips',[138,205]],['Pharynx',[425,300]],['Tongue',[300,320]],['Vocal folds',[405,445]]];
+(()=>{let h='';LB.forEach(([t,[x,y]],i)=>{const ax=.75*x-20,ay=.75*y+80,ly=140+i*32;
+ h+=`<line class="leader" x1="${ax}" y1="${ay}" x2="466" y2="${ly}"/><text class="ts" x="472" y="${ly+4}">${t}</text>`;});
+ document.getElementById('labels').innerHTML=h;})();
+const $=id=>document.getElementById(id);
+function folds(t){
+ let g;const st=main.glot;
+ if(st==='v')g=RM?2:2+2.2*Math.sin(t/1000*2*Math.PI*5);else if(st==='c')g=-1.5;else g=8;
+ const col=st==='c'?'#E24B4A':'#ED93B1';$('fU').setAttribute('fill',col);$('fL').setAttribute('fill',col);
+ $('fU').setAttribute('points',`530,486 615,${486-g} 615,${470-g}`);
+ $('fL').setAttribute('points',`530,486 615,${486+g} 615,${502+g}`);
+ $('aU').setAttribute('cx',620);$('aU').setAttribute('cy',472-g);$('aL').setAttribute('cx',620);$('aL').setAttribute('cy',500+g);
+ $('gstat').textContent=st==='v'?'Vibrating: voiced':st==='h'?'Open, with friction: /h/':st==='c'?'Pressed shut: airflow stopped':'Open: voiceless';
+}
+let mainBtn=null,consBtn=null,consSel=null,curPair=0;
+function pickMain(c,btn){
+ if(mainBtn)mainBtn.classList.remove('on');mainBtn=btn;if(btn){btn.classList.add('on');}
+ document.querySelectorAll('.cb').forEach(b=>b.setAttribute('aria-pressed',b===btn));consBtn=btn;consSel=c;
+ $('ro-ipa').textContent='/'+c.i+'/';$('ro-word').textContent=c.w;
+ $('ro-desc').textContent=`${c.v?'Voiced':'Voiceless'} ${c.pl} ${c.mn}`;
+ main.tok++;perform(main,c,t=>$('phase').textContent=t);
+}
+
+/* chart */
+const COLS=['Bilabial','Labiodental','Dental','Alveolar','Postalveolar','Palatal','Velar','Glottal'];
+const ROWS=[['Plosive',{0:['p','b'],3:['t','d'],6:['k','g']}],['Affricate',{4:['tʃ','dʒ']}],
+ ['Fricative',{1:['f','v'],2:['θ','ð'],3:['s','z'],4:['ʃ','ʒ'],7:['h',null]}],['Nasal',{0:[null,'m'],3:[null,'n'],6:[null,'ŋ']}],
+ ['Approximant',{0:[null,'w'],3:[null,'ɹ'],5:[null,'j']}],['Lateral approximant',{3:[null,'l']}]];
+(()=>{const tb=$('chart');let h='<thead><tr><td></td>'+COLS.map(c=>`<th scope="col">${c}</th>`).join('')+'</tr></thead><tbody>';
+ ROWS.forEach(([name,cells])=>{h+=`<tr><th scope="row">${name}</th>`;
+  for(let i=0;i<8;i++){const pr=cells[i];h+='<td>';if(pr){h+='<div class="cell">'+pr.map(x=>{if(!x)return '<span class="ph"></span>';const c=BY[x];
+   return `<button type="button" class="cb" data-i="${x}" aria-pressed="false" aria-label="${x} as in ${c.w}"><span class="i" aria-hidden="true">${x}</span><span class="w" aria-hidden="true">${c.w}</span></button>`;}).join('')+'</div>';}h+='</td>';}
+  h+='</tr>';});
+ tb.innerHTML=h+'</tbody>';
+ tb.querySelectorAll('.cb').forEach(b=>b.addEventListener('click',()=>pickMain(BY[b.dataset.i],b)));})();
+
+/* pairs */
+const PAIRS=[
+ ['l','light','ɹ','right','Tip presses on the ridge behind the top teeth. Air flows out past the sides of the tongue.','Tip curls up toward the ridge but never touches it. Lips round slightly.','Contact or no contact: /l/ touches the ridge, /ɹ/ does not.'],
+ ['b','berry','v','very','Both lips close completely, then pop open.','Top teeth rest lightly on the lower lip. Air buzzes through without stopping.','/b/ is a quick stop with both lips; /v/ is continuous friction between the teeth and the lower lip.'],
+ ['s','sink','θ','think','Tip sits close to the ridge. Air hisses through a narrow groove.','Tip moves forward to the edge of the top teeth. The hiss is softer and flatter.','Bring the tongue tip forward to the teeth for /θ/.'],
+ ['z','breeze','ð','breathe','Like /s/, with the vocal folds vibrating.','Like /θ/, with the vocal folds vibrating.','The same tongue move as s and θ: forward to the teeth for /ð/. Both sounds are voiced.'],
+ ['h','hall','f','fall','Mouth open and relaxed. The friction comes from the vocal folds, deep in the throat.','Top teeth rest on the lower lip. The friction is at the lip.','/h/ makes its noise in the throat; /f/ makes it at the lip.'],
+ ['s','see','ʃ','she','Tip close to the ridge, lips spread. A sharp, high hiss.','Tongue pulled slightly back behind the ridge, lips rounded. A lower, "shushing" hiss.','For /ʃ/, pull the tongue back a little and round the lips.'],
+ ['p','pin','b','bin','Both lips close, then pop open. The vocal folds stay apart during the closure.','The same lip closure and release, with the vocal folds vibrating.','The mouth does exactly the same thing. Only the vocal folds differ: open for /p/, vibrating for /b/.'],
+ ['s','sip','z','zip','Tip close to the ridge; air hisses through a narrow groove. No buzz.','The same tongue position, with the vocal folds buzzing under the hiss.','Same mouth, voice off for /s/ and on for /z/. A hand on the throat feels the buzz on /z/ only.'],
+ ['f','fan','v','van','Top teeth rest on the lower lip; air hisses through. No buzz.','The same teeth-on-lip position, with the vocal folds vibrating.','Same mouth shape. Turn the voice on for /v/.']];
+const miniA=new Scene(document.querySelector('#cardA .mini')),miniB=new Scene(document.querySelector('#cardB .mini'));
+async function loop(sc,c){const my=++sc.tok;while(sc.tok===my){await perform(sc,c,()=>{});if(sc.tok!==my)break;await wait(900);}}
+function fillCard(id,c,word,txt){const el=$(id);el.querySelector('.hd .i').textContent='/'+c.i+'/';el.querySelector('.hd .w').textContent=word;
+ el.querySelector('.vo').textContent=`${c.v?'Voiced':'Voiceless'} ${c.pl} ${c.mn}`;el.querySelector('.txt').textContent=txt;}
+function pickPair(n,btn){curPair=n;document.querySelectorAll('.pb').forEach(b=>{const on=b===btn;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+ const p=PAIRS[n],a=BY[p[0]],b=BY[p[2]];fillCard('cardA',a,p[1],p[4]);fillCard('cardB',b,p[3],p[5]);$('pairKey').textContent=p[6];
+ loop(miniA,a);loop(miniB,b);}
+(()=>{const row=$('pairBtns');PAIRS.forEach((p,n)=>{const b=document.createElement('button');b.type='button';b.className='pb';b.setAttribute('aria-pressed','false');
+ b.setAttribute('aria-label',`${p[0]} versus ${p[2]}: ${p[1]} and ${p[3]}`);
+ b.innerHTML=`<span class="i" aria-hidden="true">${p[0]} · ${p[2]}</span><span class="w" aria-hidden="true">${p[1]} / ${p[3]}</span>`;
+ b.onclick=()=>pickPair(n,b);row.appendChild(b);});})();
+
+const VFR={};
+function miniFolds(id,sc,t){const r=VFR[id]||(VFR[id]=(c=>({u:c.querySelector('.fu'),l:c.querySelector('.fl'),au:c.querySelector('.au'),al:c.querySelector('.al'),s:c.querySelector('.vfs')}))($(id)));
+ const st=sc.glot,g=st==='v'?(RM?2:2+2.2*Math.sin(t/1000*2*Math.PI*5)):8;
+ r.u.setAttribute('points',`20,25 125,${25-g} 125,${11-g}`);r.l.setAttribute('points',`20,25 125,${25+g} 125,${39+g}`);
+ r.au.setAttribute('cy',13-g);r.al.setAttribute('cy',37+g);
+ const txt=st==='v'?'Vocal folds vibrating':st==='h'?'Vocal folds open, with friction':'Vocal folds open';if(r.s.textContent!==txt)r.s.textContent=txt;}
+function frame(t){main.tick(t);miniA.tick(t);miniB.tick(t);folds(t);miniFolds('cardA',miniA,t);miniFolds('cardB',miniB,t);requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+
+/* vowels: same head model, driven by tongue height/backness, rounding and r-coloring */
+const VP={i:[1,.05,-.5],I:[.78,.2,-.2],e:[.65,.1,-.3],E:[.45,.15,-.2],ae:[.12,.1,-.3],A:[0,.85,0],O:[.3,.95,.6],o:[.62,.95,.8],U:[.75,.82,.6],u:[1,1,1],V:[.35,.6,0],sch:[.45,.5,0],a:[.05,.45,0],
+ R:[.5,.5,.15,.8],Rb:[.55,.55,.3,1],Q:[.05,1,.45],N:[.48,.48,0]};
+const VG=[
+ ['American monophthongs',[['i','see','i'],['ɪ','sit','I'],['ɛ','bed','E'],['æ','cat','ae'],['ʌ','cup','V'],['ə','about','sch'],['ɑ','father','A'],['ɔ','thought','O'],['ʊ','book','U'],['u','food','u']]],
+ ['Diphthongs',[['eɪ','say','e I'],['oʊ','go','o U'],['aɪ','my','a I'],['aʊ','now','a U'],['ɔɪ','boy','O I']]],
+ ['R-colored (American)',[['ɝ','bird','Rb'],['ɚ','butter','R'],['ɑɹ','car','A R']]],
+ ['British',[['ɒ','lot','Q'],['ɜː','bird','N'],['ɪə','near','I sch'],['eə','square','E sch']]],
+ ['Consonant',[['ʔ','uh-oh','GLOT']]]];
+function V2S(key){const [h,b,r,q=0]=VP[key],jo=6+(1-h)*28;
+ return {jo,tx:185+q*8,ty:240+jo-q*20,px:235+b*120,py:292-h*120,rx:372+b*20+(1-h)*b*25+q*22,bl:-10-q*8,r,lipC:0,ld:0,vel:0,fl:0};}
+function vXY(key){const [h,b]=VP[key];return [500+(1-h)*40+b*(140-(1-h)*40),70+(1-h)*120];}
+function vlbl(key){const [h,b,r,q]=VP[key];const H=h>=.85?'High':h>=.6?'Near-high':h>=.38?'Mid':h>=.2?'Low-mid':'Low';
+ const B=b<.33?'front':b<.7?'central':'back';return `${H} ${B} ${r>.4?'rounded':'unrounded'}${q?', r-colored':''}`;}
+let dotAnim=0;
+function moveDot(key,ms){const [x,y]=vXY(key),d=$('vdot'),x0=+d.getAttribute('cx'),y0=+d.getAttribute('cy'),t0=performance.now(),id=++dotAnim;
+ const st=t=>{if(id!==dotAnim)return;let q=RM?1:Math.min(1,(t-t0)/ms);q=q<.5?2*q*q:1-Math.pow(-2*q+2,2)/2;
+  d.setAttribute('cx',x0+(x-x0)*q);d.setAttribute('cy',y0+(y-y0)*q);if(q<1)requestAnimationFrame(st);};requestAnimationFrame(st);}
+async function performVowel(sc,v,setPhase){
+ const my=sc.tok,go=async p=>{await p;if(sc.tok!==my)throw STOP;};
+ const ks=v[2].split(' ');sc.hiss=null;sc.glow=false;sc.glot='v';sc.air='flow';$('vtrail').setAttribute('d','');
+ try{
+  if(ks[0]==='GLOT'){
+   setPhase('“uh”: voiced air flows out through the mouth');moveDot('V',300);await go(sc.tween(V2S('V'),300));await go(wait(450));
+   sc.glot='c';sc.setHold('glo');sc.glow=true;sc.glowT=performance.now();
+   setPhase('Glottal stop: the vocal folds clamp shut and air pressure builds below them');moveDot('sch',150);await go(sc.tween(V2S('sch'),150));await go(wait(700));
+   sc.glow=false;sc.glot='v';sc.air='burst';setPhase('“oh”: the folds release and voicing starts again');moveDot('o',200);await go(sc.tween(V2S('o'),200));
+   await go(wait(150));sc.air='flow';moveDot('U',500);await go(sc.tween(V2S('U'),500));return;}
+  if(ks.length===1){setPhase('Open vocal tract: voiced air flows out through the mouth, with no blockage');moveDot(ks[0],350);await go(sc.tween(V2S(ks[0]),350));return;}
+  setPhase('Glide: the tongue moves smoothly from the first position to the second');
+  moveDot(ks[0],300);await go(sc.tween(V2S(ks[0]),300));await go(wait(250));
+  const [x1,y1]=vXY(ks[0]),[x2,y2]=vXY(ks[1]);$('vtrail').setAttribute('d',`M${x1},${y1} L${x2},${y2}`);
+  moveDot(ks[1],650);await go(sc.tween(V2S(ks[1]),650));
+ }catch(e){if(e!==STOP)throw e;}
+}
+let vowBtn=null,vowSel=null;
+function pickVowel(v,btn){vowBtn=btn;vowSel=v;
+ document.querySelectorAll('.vb').forEach(b=>{const on=b===btn;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+ const ks=v[2].split(' ');$('ro-ipa').textContent='/'+v[0]+'/';$('ro-word').textContent=v[1];
+ $('ro-desc').textContent=ks[0]==='GLOT'?'Glottal stop: the vocal folds close completely, then release':ks.length===1?vlbl(ks[0]):'Diphthong: '+vlbl(ks[0]).toLowerCase()+' → '+vlbl(ks[1]).toLowerCase();
+ main.tok++;performVowel(main,v,t=>$('phase').textContent=t);}
+(()=>{const box=$('vbtns');VG.forEach(([name,list])=>{const g=document.createElement('section');g.className='vg';
+ const h=document.createElement('h3');h.textContent=name;g.appendChild(h);const row=document.createElement('div');row.className='vrowb';
+ list.forEach(v=>{const b=document.createElement('button');b.type='button';b.className='vb';b.setAttribute('aria-pressed','false');b.setAttribute('aria-label',`${v[0]} as in ${v[1]}`);
+  b.innerHTML=`<span class="i" aria-hidden="true">${v[0]}</span><span class="w" aria-hidden="true">${v[1]}</span>`;b.onclick=()=>pickVowel(v,b);row.appendChild(b);});
+ g.appendChild(row);box.appendChild(g);});})();
+
+/* tabs */
+function setTab(name){const vow=name==='vowels';
+ $('tab-cons').hidden=vow;$('tab-cons').style.display=vow?'none':'flex';$('tab-vow').hidden=!vow;$('vchart').toggleAttribute('hidden',!vow);
+ $('tabbtn-cons').setAttribute('aria-selected',!vow);$('tabbtn-vow').setAttribute('aria-selected',vow);
+ if(vow){miniA.tok++;miniB.tok++;miniA.air=miniB.air='none';miniA.hiss=miniB.hiss=null;miniA.glow=miniB.glow=false;
+  if(vowSel)pickVowel(vowSel,vowBtn);else{const b=document.querySelector('.vb');pickVowel(VG[0][1][0],b);}}
+ else{pickPair(curPair,document.querySelectorAll('.pb')[curPair]);
+  if(consSel)pickMain(consSel,consBtn);else pickMain(BY['p'],document.querySelector('.cb[data-i="p"]'));}}
+$('tabbtn-cons').onclick=()=>setTab('consonants');$('tabbtn-vow').onclick=()=>setTab('vowels');
+document.querySelector('.tabs').addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const v=$('tabbtn-vow').getAttribute('aria-selected')==='true';setTab(v?'consonants':'vowels');$(v?'tabbtn-cons':'tabbtn-vow').focus();}});
+let startTab='consonants';try{if(location.hash==='#vowels')startTab='vowels';}catch(e){}
+setTab(startTab);
+</script>
+</body>
+</html>
